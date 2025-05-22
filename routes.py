@@ -10,6 +10,7 @@ import os
 from functools import wraps
 import psgc_api
 import datetime
+import uuid
 
 # Context processor to provide current year to all templates
 @app.context_processor
@@ -439,7 +440,7 @@ def edit_user(user_id):
         flash('You do not have permission to edit this user.')
         return redirect(url_for('admin_dashboard'))
     
-    form = UserEditForm(user.email)
+    form = UserEditForm(original_email=user.email)
     
     # Load region choices for dropdown (always needed)
     regions = psgc_api.get_regions()
@@ -625,9 +626,10 @@ def edit_user(user_id):
         if changes:
             # Create a transaction record for the user edit
             transaction = Transaction(
-                sender_id=current_user.id,  # Admin making the change
-                receiver_id=user.id,        # User being modified
-                amount=None,                # No money involved
+                transaction_id=str(uuid.uuid4()),
+                sender_id=current_user.id,
+                receiver_id=user.id,
+                amount=0.0,  # Changed from None to 0.0
                 transaction_type='user_edit',
                 details="\n".join(changes),
                 timestamp=datetime.datetime.utcnow()
@@ -635,10 +637,10 @@ def edit_user(user_id):
             db.session.add(transaction)
         
         db.session.commit()
-        flash(f'User information for {user.username} has been updated.')
+        flash('User information updated successfully!', 'success')
         return redirect(url_for('admin_dashboard'))
-    
-    return render_template('admin/edit_user.html', title='Edit User', form=form, user=user)
+        
+    return render_template('admin/edit_user.html', form=form, user=user)
 
 # Apply rate limiting to API endpoints
 @app.route('/api/provinces/<region_code>')
