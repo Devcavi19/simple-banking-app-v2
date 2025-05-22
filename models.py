@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import random
 import string
+import uuid
 
 def generate_account_number():
     """Generate a random 10-digit account number"""
@@ -75,6 +76,8 @@ class User(UserMixin, db.Model):
         """Property to maintain compatibility with code using is_active"""
         return self.status == 'active'
     
+
+    # Then update the transfer_money method
     def transfer_money(self, recipient, amount):
         # Allow transfers if: 
         # 1. User has sufficient balance
@@ -84,6 +87,7 @@ class User(UserMixin, db.Model):
             self.balance -= amount
             recipient.balance += amount
             transaction = Transaction(
+                transaction_id=f"{uuid.uuid4()}",  # Generate a UUID for the transaction_id
                 sender_id=self.id,
                 receiver_id=recipient.id,
                 amount=amount,
@@ -93,7 +97,8 @@ class User(UserMixin, db.Model):
             db.session.add(transaction)
             return True
         return False
-    
+
+    # Also update the deposit method
     def deposit(self, amount, admin_user):
         """Process an over-the-counter deposit by an admin"""
         if amount <= 0:
@@ -104,6 +109,7 @@ class User(UserMixin, db.Model):
         
         # Create a transaction record (from admin to user)
         transaction = Transaction(
+            transaction_id=f"{uuid.uuid4()}",  # Generate a UUID for the transaction_id
             sender_id=admin_user.id,
             receiver_id=self.id,
             amount=amount,
@@ -147,7 +153,9 @@ class User(UserMixin, db.Model):
         return False
 
 class Transaction(db.Model):
+    __tablename__ = 'transaction'
     id = db.Column(db.Integer, primary_key=True)
+    transaction_id = db.Column(db.String(36), unique=True)  # For UUID-like values
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     amount = db.Column(db.Float)
