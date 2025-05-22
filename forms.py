@@ -184,3 +184,12 @@ class ConfirmTransferForm(FlaskForm):
     amount = HiddenField('Amount')
     transfer_type = HiddenField('Transfer Type')
     submit = SubmitField('Confirm Transfer')
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[DataRequired(), validate_password_strength])
+    confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('new_password')])
+    submit = SubmitField('Change Password')
+    
+    def validate(self, extra_validators=None):
+        return super(ChangePasswordForm, self).validate()
