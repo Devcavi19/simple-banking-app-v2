@@ -5,6 +5,7 @@ import datetime
 import random
 import string
 import uuid
+from sqlalchemy.orm import validates
 
 def generate_account_number():
     """Generate a random 10-digit account number"""
@@ -163,5 +164,11 @@ class Transaction(db.Model):
     transaction_type = db.Column(db.String(20), default='transfer')  # 'transfer', 'deposit', 'user_edit', etc.
     details = db.Column(db.Text, nullable=True)  # For storing additional details (e.g., fields modified)
     
+    @validates('amount')
+    def validate_amount(self, key, value):
+        if value is None and self.transaction_type == 'user_edit':
+            return 0.0
+        return value
+
     def __repr__(self):
         return f'<Transaction {self.id} - {self.amount}>'
