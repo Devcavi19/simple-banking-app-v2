@@ -1,273 +1,145 @@
-# Simple Banking App
+# Simple Banking App v2 - Security Enhanced Edition
 
-A user-friendly and responsive Flask-based banking application designed for deployment on PythonAnywhere. This application allows users to create accounts, perform simulated money transfers between accounts, view transaction history, and securely manage their credentials.
+This repository contains an improved version of a simple banking application with significantly enhanced security features. This document outlines the security improvements and additional features implemented in this version compared to the original.
 
-## Features
+## Security Improvements
 
-- **User Authentication**
-  - Secure login with username/password
-  - Registration of new users
-  - Password recovery mechanism (email-based)
+### Authentication and Password Management
 
-- **Account Management**
-  - Display of account balance
-  - View recent transaction history (last 10 transactions)
+- **Enhanced Password Security**: Implemented bcrypt for secure password hashing with built-in salt, replacing basic password hashing.
+- **Strong Password Requirements**: Added comprehensive password validation requiring:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - At least one number
+  - At least one special character
+- **Password Reset Functionality**: Added secure password reset with time-limited tokens using URLSafeTimedSerializer.
+- **Forced Password Change**: Added capability for admin-created accounts to require password change on first login.
 
-- **Fund Transfer**
-  - Transfer money to other registered users
-  - Confirmation screen before completing transfers
-  - Transaction history updated after transfers
+### Session Security
 
-- **User Role Management**
-  - Regular user accounts
-  - Admin users with account approval capabilities
-  - Manager users who can manage admin accounts
+- **Session Timeout**: Added automatic session expiration after 30 minutes of inactivity.
+- **CSRF Protection**: Implemented Cross-Site Request Forgery protection using Flask-WTF's CSRFProtect.
+- **First Login Check**: Added decorator to force password change for new accounts before accessing other features.
 
-- **Location Data Integration**
-  - Philippine Standard Geographic Code (PSGC) API integration
-  - Hierarchical location data selection (Region, Province, City, Barangay)
-  - Form fields pre-populated with location data
+### Rate Limiting and Brute Force Protection
 
-- **Admin Features**
-  - User account approval workflow
-  - Account activation/deactivation
-  - Deposit funds to user accounts
-  - Create new accounts
-  - Edit user information
+- **API Rate Limiting**: Implemented Flask-Limiter to protect against brute force attacks and DoS attempts.
+- **Custom Rate Limit Handling**: Added custom error pages for rate limit exceeded events.
 
-- **Manager Features**
-  - Create and manage admin accounts
-  - View admin transaction logs
-  - Monitor all system transfers
+### Access Control
 
-- **Security**
-  - Password hashing with bcrypt for secure storage
-  - Secure session management
-  - Token-based password reset
-  - API rate limiting to prevent abuse
-  - CSRF protection for all forms
+- **Role-Based Access Control**: Enhanced user role system with:
+  - Regular users
+  - Admin users (can manage regular users)
+  - Manager users (can manage admins)
+- **Decorators for Permission Control**: Implemented custom decorators for ensuring access control:
+  - `@admin_required`
+  - `@manager_required`
+  - `@first_login_check`
 
-## Getting Started
+### Secure Data Handling
 
-### Prerequisites
-- Python 3.7+
-- pip (Python package manager)
-- MySQL Server 5.7+ or MariaDB 10.2+
+- **UUID for Transactions**: Implemented UUID for transaction IDs to prevent sequential guessing.
+- **Parameter Validation**: All form inputs have proper validation to prevent injection attacks.
+- **Data Sanitization**: Implemented input sanitization to prevent XSS attacks.
 
-### Database Setup
+## Feature Enhancements
 
-1. Install MySQL Server or MariaDB if you haven't already:
+### User Management
+
+- **Enhanced User Profiles**: Added detailed address information with PSGC (Philippine Standard Geographic Code) API integration.
+- **Account Status Management**: Implemented account status system (active, deactivated, pending).
+- **Admin Dashboard**: Built comprehensive admin dashboard for user management.
+- **Manager Dashboard**: Added manager-level controls for admin management.
+
+### Banking Features
+
+- **Improved Transfer System**: Enhanced money transfer system with:
+  - Transfer by username or account number
+  - Transfer confirmation step
+  - Transaction history
+- **Deposit Functionality**: Added deposit capability for admins to add funds to user accounts.
+- **Transaction Records**: Improved transaction tracking and history.
+
+### UI/UX Improvements
+
+- **Responsive Interface**: Enhanced UI for better usability across devices.
+- **Error Handling**: Improved error messages and validation feedback.
+- **Flash Messaging**: Better user feedback system for actions and errors.
+
+## Technical Improvements
+
+- **Environment Variables**: Secure configuration using environment variables and dotenv.
+- **Database Connection**: Enhanced database connection management with proper error handling.
+- **Scalable Structure**: Organized code structure for maintainability and scalability.
+- **Comprehensive Logging**: Added logging for security events and system monitoring.
+
+## Setup and Installation
+
+1. Clone the repository
+2. Set up a virtual environment:
    ```
-   # For Ubuntu/Debian
-   sudo apt update
-   sudo apt install mysql-server
-   
-   # For macOS with Homebrew
-   brew install mysql
-   
-   # For Windows
-   # Download and install from the official website
+   python -m venv env
+   env\Scripts\activate  # On Windows
    ```
 
-2. Create a database user and set privileges:
+3. Install required packages:
    ```
-   mysql -u root -p
-   
-   # In MySQL prompt
-   CREATE USER 'bankapp'@'localhost' IDENTIFIED BY 'your_password';
-   GRANT ALL PRIVILEGES ON *.* TO 'bankapp'@'localhost';
-   FLUSH PRIVILEGES;
-   EXIT;
+   pip install -r requirements.txt
    ```
 
-3. Update the `.env` file with your MySQL credentials:
+4. Configure environment variables in a `.env` file:
    ```
-   DATABASE_URL=mysql+pymysql://bankapp:your_password@localhost/simple_banking
-   MYSQL_USER=bankapp
-   MYSQL_PASSWORD=your_password
-   MYSQL_HOST=localhost
+   SECRET_KEY=your_secret_key_here
+   MYSQL_USER=your_db_user
+   MYSQL_PASSWORD=your_db_password
+   MYSQL_HOST=your_db_host
    MYSQL_PORT=3306
-   MYSQL_DATABASE=simple_banking
+   MYSQL_DATABASE=banking_app
    ```
 
-4. Initialize the database:
-   ```
-   python init_db.py
-   ```
-
-### Installation
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/lanlanjr/simple-banking-app.git
-   cd simple-banking-app
-   
-   # Set up your own repository
-   # First, create a new repository named 'simple-banking-app-v2' on GitHub
-   
-   # Then configure your local repository
-   git remote remove origin
-   git remote add origin https://github.com/yourusername/simple-banking-app-v2.git
-   git branch -M main
-   git push -u origin main
-   
-   # Note: Replace 'yourusername' with your actual GitHub username
-   ```
-
-2. Install the required packages:
-   ```
-   pip install -r requirements.txt
-   ```
-
-3. Run the application:
-   ```
-   python app.py
-   ```
-
-4. Access the application at `http://localhost:5000`
-
-## Deploying to PythonAnywhere
-
-1. Create a PythonAnywhere account at [www.pythonanywhere.com](https://www.pythonanywhere.com)
-
-2. Upload your code using Git:
-   ```
-   git clone https://github.com/yourusername/simple-banking-app-v2.git
-   ```
-
-3. Install requirements:
-   ```
-   cd simple-banking-app-v2
-   pip install -r requirements.txt
-   ```
-
-4. Set up MySQL database on PythonAnywhere:
-   - Go to the Databases tab in your PythonAnywhere dashboard
-   - Create a new MySQL database
-   - Note the database name, username, and password
-   - Update your .env file with these credentials
-
-5. Initialize your database on PythonAnywhere:
+5. Initialize the database:
    ```
    python init_db.py
    ```
 
-6. Configure a new web app via the PythonAnywhere dashboard:
-   - Select "Manual configuration"
-   - Choose Python 3.8
-   - Set source code directory to `/home/yourusername/simple-banking-app-v2`
-   - Set working directory to `/home/yourusername/simple-banking-app-v2`
-   - Set WSGI configuration file to point to your Flask app
-
-7. Add environment variables in the PythonAnywhere dashboard for security
-
-## Usage
-
-### Registration
-- Navigate to the registration page
-- Enter username, email, and password
-- Confirm your password
-- Submit the form to create your account (pending admin approval)
-
-### Login
-- Enter your username and password
-- Click "Sign In"
-
-### Account Overview
-- View your current balance
-- See your recent transaction history
-
-### Transfer Funds
-- Navigate to the Transfer page
-- Enter recipient's username or account number
-- Enter the amount to transfer
-- Confirm the transfer details on the confirmation screen
-- Complete the transfer
-
-### Password Reset
-- Click "Forgot your password?" on the login page
-- Enter your registered email address
-- Follow the link in the email (simulated in this demo)
-- Create a new password
-
-### Admin Features
-- Approve new user registrations
-- Activate/deactivate user accounts
-- Create new user accounts
-- Make over-the-counter deposits to user accounts
-- Edit user details including location information
-
-### Manager Features
-- Create new admin accounts
-- Toggle admin status for users
-- View all user transactions
-- Monitor and audit admin activities
-
-## User Roles
-
-The system supports three types of user roles:
-
-1. **Regular Users** - Can manage their own account, make transfers, and view their transaction history.
-
-2. **Admin Users** - Have all regular user privileges plus:
-   - Approve/reject new user registrations
-   - Activate/deactivate user accounts
-   - Create new user accounts
-   - Make deposits to user accounts
-   - Edit user information
-
-3. **Manager Users** - Have all admin privileges plus:
-   - Create and manage admin accounts
-   - View admin transaction logs
-   - Monitor all system transfers
-   - System-wide oversight capabilities
-
-## Address Management with PSGC API
-
-The application integrates with the Philippine Standard Geographic Code (PSGC) API to provide standardized address selection for user profiles. The address system follows the Philippine geographical hierarchy:
-
-- Region
-- Province
-- City/Municipality
-- Barangay
-
-This integration ensures addresses are standardized and validates location data according to the Philippine geographical structure.
-
-## Technologies Used
-
-- **Backend**: Python, Flask
-- **Database**: MySQL (with SQLAlchemy ORM)
-- **Frontend**: HTML, CSS, Bootstrap 5
-- **Authentication**: Flask-Login, Werkzeug, Flask-Bcrypt
-- **Forms**: Flask-WTF, WTForms
-- **Security**: Flask-Limiter for API rate limiting, CSRF protection
-- **External API**: PSGC API for Philippine geographic data
-
-## Rate Limiting
-
-The application uses Flask-Limiter to implement API rate limiting, which protects against potential DoS attacks and abusive bot activity. The rate limits are configured as follows:
-
-- **Login**: 10 attempts per minute
-- **Registration**: 5 attempts per minute
-- **Password Reset**: 5 attempts per hour
-- **Money Transfer**: 20 attempts per hour
-- **API Endpoints**: 30 requests per minute
-- **Admin Dashboard**: 60 requests per hour
-- **Admin Account Creation**: 20 accounts per hour
-- **Admin Deposits**: 30 deposits per hour
-- **Manager Dashboard**: 60 requests per hour
-- **Admin Creation**: 10 admin accounts per hour
-
-By default, the rate limiting data is stored in memory. For production use, it's recommended to use Redis as a storage backend for persistence across application restarts. To enable Redis storage:
-
-1. Install Redis server on your system
-2. Update the `.env` file with your Redis URL:
+6. Run the application:
    ```
-   REDIS_URL=redis://localhost:6379/0
+   python wsgi.py
    ```
 
-If Redis is not available, the application will automatically fall back to in-memory storage.
+## Comparison to Original Version
+
+| Feature | Original Version | Improved Version |
+|---------|-----------------|------------------|
+| Password Storage | Basic hashing | Bcrypt with salt |
+| Password Requirements | None | Complex requirements enforced |
+| CSRF Protection | None | Implemented |
+| Rate Limiting | None | Comprehensive |
+| Session Management | Basic | Timeout, better controls |
+| User Roles | Basic | Enhanced with managers |
+| Transaction IDs | Sequential | UUID-based |
+| User Profiles | Basic | Enhanced with PSGC integration |
+| Error Handling | Basic | Comprehensive |
+
+## Security Best Practices Implemented
+
+- Defense in depth with multiple security layers
+- Principle of least privilege for user roles
+- Secure default configurations
+- Regular security validation
+- Input validation on both client and server sides
+- Protection against common web vulnerabilities (OWASP Top 10)
+
+## Future Enhancements
+
+- Two-factor authentication
+- IP-based anomaly detection
+- Enhanced audit logging
+- Additional account recovery options
+- Account activity notifications
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+[Insert appropriate license information here]
