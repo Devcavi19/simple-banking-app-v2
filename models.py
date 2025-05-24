@@ -28,6 +28,8 @@ class User(UserMixin, db.Model):
     postal_code = db.Column(db.String(10), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     password_hash = db.Column(db.String(128))
+    # Add pin_hash for storing hashed 6-digit PIN
+    pin_hash = db.Column(db.String(128), nullable=True)
     account_number = db.Column(db.String(10), unique=True, default=generate_account_number)
     balance = db.Column(db.Float, default=1000.0)  # Match schema.sql default of 1000.0
     status = db.Column(db.String(20), default='pending')  # 'active', 'deactivated', or 'pending'
@@ -68,6 +70,16 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         # Use bcrypt to verify password
         return bcrypt.check_password_hash(self.password_hash, password)
+
+    def set_pin(self, pin):
+        """Set the user's 6-digit PIN (hashed)."""
+        self.pin_hash = bcrypt.generate_password_hash(pin).decode('utf-8')
+
+    def check_pin(self, pin):
+        """Check the user's 6-digit PIN."""
+        if not self.pin_hash:
+            return False
+        return bcrypt.check_password_hash(self.pin_hash, pin)
     
     @property
     def is_active(self):
@@ -155,4 +167,4 @@ class Transaction(db.Model):
     details = db.Column(db.Text, nullable=True)  # For storing additional details (e.g., fields modified)
     
     def __repr__(self):
-        return f'<Transaction {self.id} - {self.amount}>' 
+        return f'<Transaction {self.id} - {self.amount}>'
