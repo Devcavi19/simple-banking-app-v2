@@ -2,6 +2,33 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, FloatField, RadioField, SelectField, HiddenField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, NumberRange, Optional, Length, Regexp
 from models import User
+import re
+
+def validate_password_strength(form, field):
+    """
+    Validate that the password meets strength requirements:
+    - At least 8 characters
+    - Contains at least one uppercase letter
+    - Contains at least one lowercase letter
+    - Contains at least one number
+    - Contains at least one special character
+    """
+    password = field.data
+    
+    if len(password) < 8:
+        raise ValidationError('Password must be at least 8 characters long')
+    
+    if not re.search(r'[A-Z]', password):
+        raise ValidationError('Password must contain at least one uppercase letter')
+    
+    if not re.search(r'[a-z]', password):
+        raise ValidationError('Password must contain at least one lowercase letter')
+    
+    if not re.search(r'[0-9]', password):
+        raise ValidationError('Password must contain at least one number')
+    
+    if not re.search(r'[^A-Za-z0-9]', password):
+        raise ValidationError('Password must contain at least one special character')
 
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
@@ -14,7 +41,7 @@ class LoginForm(FlaskForm):
 class RegistrationForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired(), validate_password_strength])
     password2 = PasswordField(
         'Repeat Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Register')
@@ -37,7 +64,15 @@ class SetPinForm(FlaskForm):
         DataRequired(),
         Regexp(r'^\d{6}$', message="PIN must be exactly 6 digits")
     ])
+    confirm_pin = PasswordField('Confirm PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="PIN must be exactly 6 digits")
+    ])
     submit = SubmitField('Set PIN')
+    
+    def validate_confirm_pin(self, confirm_pin):
+        if self.pin.data != confirm_pin.data:
+            raise ValidationError('PINs do not match.')
 
 class TransferForm(FlaskForm):
     transfer_type = RadioField('Transfer Type', 
@@ -92,7 +127,7 @@ class ResetPasswordRequestForm(FlaskForm):
         return super(ResetPasswordRequestForm, self).validate()
 
 class ResetPasswordForm(FlaskForm):
-    password = PasswordField('New Password', validators=[DataRequired()])
+    password = PasswordField('New Password', validators=[DataRequired(), validate_password_strength])
     password2 = PasswordField(
         'Repeat Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Reset Password')
@@ -100,11 +135,45 @@ class ResetPasswordForm(FlaskForm):
     def validate(self, extra_validators=None):
         return super(ResetPasswordForm, self).validate()
 
+class ResetPinForm(FlaskForm):
+    current_pin = PasswordField('Current PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="Current PIN must be exactly 6 digits")
+    ])
+    pin = PasswordField('New PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="New PIN must be exactly 6 digits")
+    ])
+    confirm_pin = PasswordField('Confirm New PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="New PIN must be exactly 6 digits")
+    ])
+    submit = SubmitField('Reset PIN')
+    
+    def validate_confirm_pin(self, confirm_pin):
+        if self.pin.data != confirm_pin.data:
+            raise ValidationError('New PINs do not match.')
+    
+    def validate_pin(self, pin):
+        if self.current_pin.data == pin.data:
+            raise ValidationError('New PIN must be different from current PIN.')
+
 class DepositForm(FlaskForm):
     account_number = StringField('Account Number', validators=[DataRequired()])
     amount = FloatField('Amount', validators=[DataRequired(), NumberRange(min=0.01, message="Amount must be greater than 0")])
+    pin = PasswordField('PIN', validators=[DataRequired(), Length(min=6, max=6, message="PIN must be exactly 6 digits")])
     submit = SubmitField('Deposit')
     
+    def validate_account_number(self, account_number):
+        user = User.query.filter_by(account_number=account_number.data).first()
+        if user is None:
+            raise ValidationError('Account number not found.')
+
+
+    def validate_pin(self, pin):
+        if not pin.data.isdigit():
+            raise ValidationError('PIN must contain only numbers.')
+
     def validate(self, extra_validators=None):
         if not super(DepositForm, self).validate():
             return False
@@ -168,3 +237,42 @@ class ConfirmTransferForm(FlaskForm):
     amount = HiddenField('Amount')
     transfer_type = HiddenField('Transfer Type')
     submit = SubmitField('Confirm Transfer')
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[DataRequired(), validate_password_strength])
+    confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('new_password')])
+    submit = SubmitField('Change Password')
+    
+    def validate(self, extra_validators=None):
+        return super(ChangePasswordForm, self).validate()
+
+class ToggleAdminForm(FlaskForm):
+    pin = PasswordField('Manager PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="PIN must be exactly 6 digits")
+    ])
+    action = HiddenField('Action', validators=[DataRequired()])
+    user_id = HiddenField('User ID', validators=[DataRequired()])
+    submit = SubmitField('Confirm Action')
+
+class CreateAdminForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=20)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired(), validate_password_strength])
+    password2 = PasswordField('Repeat Password', validators=[DataRequired(), EqualTo('password')])
+    pin = PasswordField('Manager PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="PIN must be exactly 6 digits")
+    ])
+    submit = SubmitField('Create Admin Account')
+
+    def validate_username(self, username):
+        user = User.query.filter_by(username=username.data).first()
+        if user is not None:
+            raise ValidationError('Please use a different username.')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user is not None:
+            raise ValidationError('Please use a different email address.')
