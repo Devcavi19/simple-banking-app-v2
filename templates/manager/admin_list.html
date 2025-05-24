@@ -45,7 +45,10 @@
                                 <td>₱{{ "%.2f"|format(admin.balance) }}</td>
                                 <td>{{ admin.date_registered.strftime('%Y-%m-%d %H:%M') }}</td>
                                 <td>
-                                    <a href="{{ url_for('toggle_admin', user_id=admin.id) }}" class="btn btn-sm btn-warning">Remove Admin</a>
+                                    <button type="button" class="btn btn-sm btn-warning" 
+                                            onclick="showPinConfirmation({{ admin.id }}, '{{ admin.username }}', 'remove_admin')">
+                                        Remove Admin
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -62,4 +65,81 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+
+<!-- PIN Confirmation Modal -->
+<div class="modal fade" id="pinConfirmationModal" tabindex="-1" aria-labelledby="pinConfirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pinConfirmationModalLabel">Manager Authorization Required</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{{ url_for('toggle_admin_with_pin') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" id="modalUserId" name="user_id" value="">
+                    <input type="hidden" id="modalAction" name="action" value="">
+                    
+                    <div class="alert alert-warning">
+                        <strong>Warning:</strong> You are about to <span id="actionText"></span> user <strong id="usernameText"></strong>.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="managerPin" class="form-label">Manager PIN</label>
+                        <input type="password" class="form-control" id="managerPin" name="pin" 
+                               maxlength="6" pattern="[0-9]{6}" placeholder="Enter your 6-digit PIN" 
+                               inputmode="numeric" required>
+                        <small class="text-muted">Enter your manager PIN to authorize this action</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Confirm Action</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showPinConfirmation(userId, username, action) {
+    document.getElementById('modalUserId').value = userId;
+    document.getElementById('modalAction').value = action;
+    document.getElementById('usernameText').textContent = username;
+    
+    let actionText = '';
+    switch(action) {
+        case 'remove_admin':
+            actionText = 'remove admin privileges from';
+            break;
+        case 'promote_admin':
+            actionText = 'promote to admin';
+            break;
+        default:
+            actionText = 'perform action on';
+    }
+    document.getElementById('actionText').textContent = actionText;
+    
+    // Clear PIN field
+    document.getElementById('managerPin').value = '';
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('pinConfirmationModal'));
+    modal.show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const pinInput = document.getElementById('managerPin');
+    
+    if (pinInput) {
+        // Restrict input to numbers only
+        pinInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '');
+            if (this.value.length > 6) {
+                this.value = this.value.slice(0, 6);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
