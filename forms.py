@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, FloatField, RadioField, SelectField, HiddenField
-from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, NumberRange, Optional
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, NumberRange, Optional, Length, Regexp
 from models import User
 
 class LoginForm(FlaskForm):
@@ -32,6 +32,13 @@ class RegistrationForm(FlaskForm):
     def validate(self, extra_validators=None):
         return super(RegistrationForm, self).validate()
 
+class SetPinForm(FlaskForm):
+    pin = PasswordField('6-digit PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="PIN must be exactly 6 digits")
+    ])
+    submit = SubmitField('Set PIN')
+
 class TransferForm(FlaskForm):
     transfer_type = RadioField('Transfer Type', 
                               choices=[('username', 'By Username'), ('account', 'By Account Number')],
@@ -39,6 +46,10 @@ class TransferForm(FlaskForm):
     recipient_username = StringField('Recipient Username', validators=[Optional()])
     recipient_account = StringField('Recipient Account Number', validators=[Optional()])
     amount = FloatField('Amount', validators=[DataRequired(), NumberRange(min=0.01, message="Amount must be greater than 0")])
+    pin = PasswordField('6-digit PIN', validators=[
+        DataRequired(),
+        Regexp(r'^\d{6}$', message="PIN must be exactly 6 digits")
+    ])
     submit = SubmitField('Transfer')
 
     def validate(self, extra_validators=None):
@@ -156,4 +167,4 @@ class ConfirmTransferForm(FlaskForm):
     recipient_account = HiddenField('Recipient Account Number')
     amount = HiddenField('Amount')
     transfer_type = HiddenField('Transfer Type')
-    submit = SubmitField('Confirm Transfer') 
+    submit = SubmitField('Confirm Transfer')
