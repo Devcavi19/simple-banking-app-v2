@@ -27,7 +27,7 @@
                         {% endfor %}
                         <div class="form-text">Enter the user's account number to deposit funds</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         {{ form.amount.label(class="form-label") }}
                         <div class="input-group">
@@ -37,6 +37,15 @@
                         {% for error in form.amount.errors %}
                         <span class="text-danger">{{ error }}</span>
                         {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.pin.label(class="form-label") }}
+                        {{ form.pin(class="form-control", placeholder="Enter your 6-digit PIN") }}
+                        {% for error in form.pin.errors %}
+                        <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                        <div class="form-text">Enter your PIN to confirm the deposit transaction</div>
                     </div>
                     
                     <div class="d-grid">
@@ -93,6 +102,19 @@
                 alert('Please enter an account number');
             }
         });
+
+        // PIN input validation - only allow numbers
+        const pinInput = document.getElementById('pin');
+        if (pinInput) {
+            pinInput.addEventListener('input', function(e) {
+                // Remove any non-digit characters
+                this.value = this.value.replace(/\D/g, '');
+                // Limit to 6 digits
+                if (this.value.length > 6) {
+                    this.value = this.value.slice(0, 6);
+                }
+            });
+        }
     });
 </script>
 {% endblock %} 

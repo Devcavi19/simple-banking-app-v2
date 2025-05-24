@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-white">
+                    <h4 class="mb-0">Transfer Verification</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Please verify your transfer details before continuing.</strong>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>To:</strong></div>
+                        <div class="col-sm-8">{{ recipient.username }} ({{ recipient.account_number }})</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Amount:</strong></div>
+                        <div class="col-sm-8">${{ "%.2f"|format(amount) }}</div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-sm-4"><strong>Your Balance After Transfer:</strong></div>
+                        <div class="col-sm-8">${{ "%.2f"|format(current_user.balance - amount) }}</div>
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('execute_transfer') }}">
+                        {{ form.hidden_tag() }}
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('transfer') }}" class="btn btn-secondary">Back to Transfer</a>
+                            {{ form.submit(class="btn btn-success") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

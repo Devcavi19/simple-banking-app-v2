@@ -30,6 +30,8 @@ class User(UserMixin, db.Model):
     postal_code = db.Column(db.String(10), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     password_hash = db.Column(db.String(128))
+    # Add pin_hash for storing hashed 6-digit PIN
+    pin_hash = db.Column(db.String(128), nullable=True)
     account_number = db.Column(db.String(10), unique=True, default=generate_account_number)
     balance = db.Column(db.Float, default=1000.0)  # Match schema.sql default of 1000.0
     status = db.Column(db.String(20), default='pending')  # 'active', 'deactivated', or 'pending'
@@ -40,26 +42,54 @@ class User(UserMixin, db.Model):
     transactions_sent = db.relationship('Transaction', foreign_keys='Transaction.sender_id', backref='sender', lazy='dynamic')
     transactions_received = db.relationship('Transaction', foreign_keys='Transaction.receiver_id', backref='receiver', lazy='dynamic')
     
+    # Add session tracking fields
+    current_session_id = db.Column(db.String(128), nullable=True)  # Current active session
+    last_login = db.Column(db.DateTime, nullable=True)  # Last login timestamp
+    last_activity = db.Column(db.DateTime, nullable=True)  # Last activity timestamp
+    
+    def check_pin(self, pin):
+        """Check the user's 6-digit PIN."""
+        if not self.pin_hash:
+            return False
+        return bcrypt.check_password_hash(self.pin_hash, pin)
+    
+    def set_session(self, session_id):
+        """Set the current active session ID"""
+        self.current_session_id = session_id
+        self.last_login = datetime.datetime.utcnow()
+        self.last_activity = datetime.datetime.utcnow()
+    
+    def clear_session(self):
+        """Clear the current session"""
+        self.current_session_id = None
+    
+    def update_activity(self):
+        """Update last activity timestamp"""
+        self.last_activity = datetime.datetime.utcnow()
+    
+    def is_session_valid(self, session_id):
+        """Check if the provided session ID matches the current active session"""
+        return self.current_session_id == session_id
+
+    @property
+    def is_active(self):
+        return self.status == 'active'
+    
     @property
     def full_address(self):
-        """Return the full formatted address"""
-        address_parts = []
+        """Returns formatted full address"""
+        parts = []
         if self.address_line:
-            address_parts.append(self.address_line)
+            parts.append(self.address_line)
         if self.barangay_name:
-            address_parts.append(f"Barangay {self.barangay_name}")
+            parts.append(self.barangay_name)
         if self.city_name:
-            address_parts.append(self.city_name)
+            parts.append(self.city_name)
         if self.province_name:
-            address_parts.append(self.province_name)
-        if self.region_name:
-            address_parts.append(self.region_name)
+            parts.append(self.province_name)
         if self.postal_code:
-            address_parts.append(self.postal_code)
-        
-        if address_parts:
-            return ", ".join(address_parts)
-        return "No address provided"
+            parts.append(self.postal_code)
+        return ", ".join(parts) if parts else "No address provided"
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -71,6 +101,16 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         # Use bcrypt to verify password
         return bcrypt.check_password_hash(self.password_hash, password)
+
+    def set_pin(self, pin):
+        """Set the user's 6-digit PIN (hashed)."""
+        self.pin_hash = bcrypt.generate_password_hash(pin).decode('utf-8')
+
+    def check_pin(self, pin):
+        """Check the user's 6-digit PIN."""
+        if not self.pin_hash:
+            return False
+        return bcrypt.check_password_hash(self.pin_hash, pin)
     
     @property
     def is_active(self):
