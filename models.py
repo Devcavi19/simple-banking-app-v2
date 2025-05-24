@@ -42,12 +42,35 @@ class User(UserMixin, db.Model):
     transactions_sent = db.relationship('Transaction', foreign_keys='Transaction.sender_id', backref='sender', lazy='dynamic')
     transactions_received = db.relationship('Transaction', foreign_keys='Transaction.receiver_id', backref='receiver', lazy='dynamic')
     
+    # Add session tracking fields
+    current_session_id = db.Column(db.String(128), nullable=True)  # Current active session
+    last_login = db.Column(db.DateTime, nullable=True)  # Last login timestamp
+    last_activity = db.Column(db.DateTime, nullable=True)  # Last activity timestamp
+    
     def check_pin(self, pin):
         """Check the user's 6-digit PIN."""
         if not self.pin_hash:
             return False
         return bcrypt.check_password_hash(self.pin_hash, pin)
     
+    def set_session(self, session_id):
+        """Set the current active session ID"""
+        self.current_session_id = session_id
+        self.last_login = datetime.datetime.utcnow()
+        self.last_activity = datetime.datetime.utcnow()
+    
+    def clear_session(self):
+        """Clear the current session"""
+        self.current_session_id = None
+    
+    def update_activity(self):
+        """Update last activity timestamp"""
+        self.last_activity = datetime.datetime.utcnow()
+    
+    def is_session_valid(self, session_id):
+        """Check if the provided session ID matches the current active session"""
+        return self.current_session_id == session_id
+
     @property
     def is_active(self):
         return self.status == 'active'
