@@ -10,6 +10,8 @@ import os
 from functools import wraps
 import psgc_api
 import datetime
+from flask import session
+
 
 # Context processor to provide current year to all templates
 @app.context_processor
@@ -93,7 +95,9 @@ def login():
             else:  # deactivated
                 flash('Your account has been deactivated. Please contact an administrator.')
             return redirect(url_for('login'))
-            
+        
+        session.clear()  # 🔒 Rotate session ID to prevent session fixation  
+      
         login_user(user)
         next_page = request.args.get('next')
         if not next_page or url_parse(next_page).netloc != '':
