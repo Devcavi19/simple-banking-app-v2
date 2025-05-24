@@ -9,6 +9,14 @@ if path not in sys.path:
 # Import the app as application
 from app import app as application
 
+# Initialize database on import for serverless
+try:
+    from app import init_db
+    with application.app_context():
+        init_db()
+except Exception as e:
+    print(f"Database initialization error: {e}")
+
 # This allows the application to be run directly
 if __name__ == '__main__':
     application.run() 
