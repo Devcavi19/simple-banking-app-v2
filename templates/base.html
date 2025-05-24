@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} - SimpleBankApp</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="https://img.icons8.com/?size=100&id=eI0Zx1zkdhCK&format=png&color=000000">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -120,11 +122,10 @@
                     </li>
                     {% endif %}
                     {% endif %}
-                </ul>
-                <ul class="navbar-nav">
+                </ul>                <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
-                    <li class="nav-item">
-                        <span class="nav-link">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ current_user.username }}
                             {% if current_user.is_manager %}
                             <span class="badge bg-danger account-badge">Manager</span>
@@ -137,10 +138,13 @@
                             {% else %}
                             <span class="badge bg-secondary account-badge">Pending</span>
                             {% endif %}
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('change_password') }}">Change Password</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('reset_pin') }}">Reset PIN</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
                     </li>
                     {% else %}
                     <li class="nav-item">

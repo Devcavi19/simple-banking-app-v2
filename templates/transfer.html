@@ -52,6 +52,15 @@
                         <div class="text-danger">{{ error }}</div>
                         {% endfor %}
                     </div>
+
+                    <div class="mb-3">
+                        {{ form.pin.label(class="form-label") }}
+                        {{ form.pin(class="form-control", maxlength="6", autocomplete="off", inputmode="numeric", pattern="\d{6}") }}
+                        {% for error in form.pin.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
                     <div class="d-grid gap-2">
                         {{ form.submit(class="btn btn-primary") }}
                     </div>
@@ -92,6 +101,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+
+    // Prevent non-digit input in PIN field
+    var pinInput = document.querySelector('input[name="pin"]');
+    if (pinInput) {
+        pinInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    }
 });
 </script>
-{% endblock %} 
+{% endblock %}

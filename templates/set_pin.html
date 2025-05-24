@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h4>Set Your PIN</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>Security Notice:</strong> You need to set a 6-digit PIN to secure your transactions. This PIN will be required for all money transfers.
+                </div>
+                
+                <form method="post" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    {% if username %}
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" value="{{ username }}" readonly>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        {{ form.pin.label(class="form-label") }}
+                        {{ form.pin(class="form-control", type="password", maxlength="6", pattern="[0-9]{6}", placeholder="Enter 6-digit PIN", autocomplete="new-password", inputmode="numeric") }}
+                        <small class="text-muted">Enter exactly 6 digits (0-9 only)</small>
+                        {% for error in form.pin.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.confirm_pin.label(class="form-label") }}
+                        {{ form.confirm_pin(class="form-control", type="password", maxlength="6", pattern="[0-9]{6}", placeholder="Confirm your 6-digit PIN", autocomplete="new-password", inputmode="numeric") }}
+                        <small class="text-muted">Re-enter your 6-digit PIN</small>
+                        {% for error in form.confirm_pin.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+                
+                <div class="mt-3">
+                    <div class="alert alert-warning">
+                        <strong>Important:</strong>
+                        <ul class="mb-0">
+                            <li>Your PIN must be exactly 6 digits</li>
+                            <li>Remember your PIN - it cannot be recovered, only reset</li>
+                            <li>Keep your PIN secret and secure</li>
+                            <li>You can change your PIN later in account settings</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pinInput = document.querySelector('input[name="pin"]');
+    const confirmPinInput = document.querySelector('input[name="confirm_pin"]');
+    const form = document.querySelector('form');
+    
+    // Restrict input to numbers only
+    function restrictToNumbers(input) {
+        input.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '');
+            if (this.value.length > 6) {
+                this.value = this.value.slice(0, 6);
+            }
+        });
+    }
+    
+    if (pinInput) {
+        restrictToNumbers(pinInput);
+    }
+    
+    if (confirmPinInput) {
+        restrictToNumbers(confirmPinInput);
+    }
+    
+    // Real-time PIN confirmation validation
+    function validatePinMatch() {
+        if (confirmPinInput && confirmPinInput.value && pinInput && pinInput.value !== confirmPinInput.value) {
+            confirmPinInput.setCustomValidity('PINs do not match');
+            confirmPinInput.classList.add('is-invalid');
+        } else {
+            if (confirmPinInput) {
+                confirmPinInput.setCustomValidity('');
+                confirmPinInput.classList.remove('is-invalid');
+            }
+        }
+    }
+    
+    if (pinInput) {
+        pinInput.addEventListener('input', validatePinMatch);
+    }
+    
+    if (confirmPinInput) {
+        confirmPinInput.addEventListener('input', validatePinMatch);
+    }
+    
+    // Form submission validation
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (pinInput && confirmPinInput && pinInput.value !== confirmPinInput.value) {
+                e.preventDefault();
+                alert('PINs do not match. Please try again.');
+                confirmPinInput.focus();
+                return false;
+            }
+            
+            if (pinInput && (pinInput.value.length !== 6 || !/^\d{6}$/.test(pinInput.value))) {
+                e.preventDefault();
+                alert('PIN must be exactly 6 digits.');
+                pinInput.focus();
+                return false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

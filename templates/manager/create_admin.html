@@ -9,8 +9,13 @@
                 <a href="{{ url_for('manager_dashboard') }}" class="btn btn-sm btn-outline-secondary">Back to Dashboard</a>
             </div>
             <div class="card-body">
+                <div class="alert alert-warning">
+                    <strong>Security Notice:</strong> You must enter your PIN to confirm this action.
+                </div>
+                
                 <form method="post" novalidate>
                     {{ form.hidden_tag() }}
+                    
                     <div class="mb-3">
                         {{ form.username.label(class="form-label") }}
                         {{ form.username(class="form-control") }}
@@ -18,6 +23,7 @@
                         <div class="text-danger">{{ error }}</div>
                         {% endfor %}
                     </div>
+                    
                     <div class="mb-3">
                         {{ form.email.label(class="form-label") }}
                         {{ form.email(class="form-control") }}
@@ -25,6 +31,7 @@
                         <div class="text-danger">{{ error }}</div>
                         {% endfor %}
                     </div>
+                    
                     <div class="mb-3">
                         {{ form.password.label(class="form-label") }}
                         {{ form.password(class="form-control") }}
@@ -32,6 +39,7 @@
                         <div class="text-danger">{{ error }}</div>
                         {% endfor %}
                     </div>
+                    
                     <div class="mb-3">
                         {{ form.password2.label(class="form-label") }}
                         {{ form.password2(class="form-control") }}
@@ -39,15 +47,45 @@
                         <div class="text-danger">{{ error }}</div>
                         {% endfor %}
                     </div>
+
+                    <hr class="my-4">
+                    <h6 class="text-warning">Manager Authorization Required</h6>
+                    
+                    <div class="mb-3">
+                        {{ form.pin.label(class="form-label") }}
+                        {{ form.pin(class="form-control", type="password", maxlength="6", pattern="[0-9]{6}", placeholder="Enter your 6-digit PIN", inputmode="numeric") }}
+                        <small class="text-muted">Enter your manager PIN to authorize this action</small>
+                        {% for error in form.pin.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
                     <div class="alert alert-info">
                         <small>Note: Admin account will be created with active status and administrative privileges.</small>
                     </div>
+                    
                     <div class="d-grid gap-2">
-                        {{ form.submit(class="btn btn-primary", value="Create Admin Account") }}
+                        {{ form.submit(class="btn btn-primary") }}
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
-{% endblock %} 
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pinInput = document.querySelector('input[name="pin"]');
+    
+    if (pinInput) {
+        // Restrict input to numbers only
+        pinInput.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '');
+            if (this.value.length > 6) {
+                this.value = this.value.slice(0, 6);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

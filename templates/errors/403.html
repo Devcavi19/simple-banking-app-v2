@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-header bg-danger text-white">
+                    <h4>Access Forbidden</h4>
+                </div>
+                <div class="card-body">
+                    <h1 class="display-1 text-danger">403</h1>
+                    <p class="lead">You don't have permission to access this resource.</p>
+                    <p>If you believe this is an error, please contact your administrator.</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Return Home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

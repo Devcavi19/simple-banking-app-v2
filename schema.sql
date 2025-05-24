@@ -28,6 +28,7 @@ CREATE TABLE user (
   postal_code VARCHAR(10),
   phone VARCHAR(20),
   password_hash VARCHAR(128) NOT NULL,
+  pin_hash VARCHAR(128),
   account_number VARCHAR(10) NOT NULL UNIQUE,
   balance FLOAT DEFAULT 1000.0,
   status VARCHAR(20) DEFAULT 'pending',
