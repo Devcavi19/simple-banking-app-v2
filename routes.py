@@ -66,33 +66,45 @@ def send_password_reset_email(user):
 @app.before_request
 def check_session_timeout():
     if current_user.is_authenticated:
-        # Skip check for change_password route if user has force_password_change flag
-        if current_user.force_password_change and request.endpoint == 'change_password':
-            return
-            
-        # Skip for static files
+        # Validate session ID
+        user_session_id = session.get('user_session_id')
+        if not user_session_id or not current_user.is_session_valid(user_session_id):
+            flash('Your session has been terminated due to login from another device.', 'warning')
+            logout_user()
+            session.clear()
+            return redirect(url_for('login'))
+        
+        # Check if user needs to change password
+        if current_user.force_password_change and request.endpoint not in ['change_password', 'logout', 'static']:
+            return redirect(url_for('change_password'))
+        
+        # Skip check for static files
         if request.path.startswith('/static'):
             return
-            
-        # Check if session is permanent (should always be for logged in users)
+        
+        # Check if session is permanent
         if not session.permanent:
-            session.permanent = True  # Make it permanent if it's not
-            
+            session.permanent = True
+        
         # Check last activity time
         last_active = session.get('last_active_time', None)
         now = datetime.datetime.utcnow()
         
         if last_active:
-            last_active = datetime.datetime.fromisoformat(last_active)
-            # If inactive for more than the permanent session lifetime, log them out
-            timeout = app.config.get('PERMANENT_SESSION_LIFETIME', datetime.timedelta(minutes=30))
-            if now - last_active > timeout:
+            last_active_dt = datetime.datetime.fromisoformat(last_active)
+            if (now - last_active_dt).total_seconds() > app.config['PERMANENT_SESSION_LIFETIME'].total_seconds():
+                flash('Your session has expired due to inactivity. Please log in again.', 'info')
+                # Clear user session on timeout
+                current_user.clear_session()
+                db.session.commit()
                 logout_user()
-                flash('Your session has expired due to inactivity. Please log in again.')
+                session.clear()
                 return redirect(url_for('login'))
         
-        # Update last activity time
+        # Update last activity time in session and database
         session['last_active_time'] = now.isoformat()
+        current_user.update_activity()
+        db.session.commit()
 
 @app.route('/')
 @app.route('/index')
@@ -119,37 +131,53 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user and user.check_password(form.password.data):
-            if user.status == 'pending':
-                flash('Your account is pending approval. Please contact an administrator.', 'warning')
-                return redirect(url_for('login'))
-            elif user.status == 'deactivated':
-                flash('Your account has been deactivated. Please contact an administrator.', 'danger')
-                return redirect(url_for('login'))
+            # Check if user already has an active session
+            if user.current_session_id:
+                flash('This account is already logged in on another device. Please try again later or contact support if this is an error.', 'warning')
+                return render_template('login.html', title='Sign In', form=form)
             
-            login_user(user)
+            # Generate new session ID
+            new_session_id = str(uuid.uuid4())
+            
+            # Set session for user
+            user.set_session(new_session_id)
+            db.session.commit()
+            
+            # Store session ID in Flask session
+            session['user_session_id'] = new_session_id
             session.permanent = True
-            session['last_activity'] = datetime.datetime.utcnow().isoformat()
+            
+            login_user(user, remember=False)
+            
+            # Check if user needs to change password
+            if user.force_password_change:
+                flash('You must change your password before continuing.', 'info')
+                return redirect(url_for('change_password'))
+            
+            # Check if user needs to set PIN
+            if not user.pin_hash:
+                flash('Please set your 6-digit PIN to complete account setup.', 'info')
+                return redirect(url_for('set_pin'))
             
             next_page = request.args.get('next')
             if not next_page or url_parse(next_page).netloc != '':
-                # Check if user needs to set PIN or change password
-                if not user.pin_hash:
-                    next_page = url_for('set_pin')
-                elif user.force_password_change:
-                    next_page = url_for('change_password')
-                else:
-                    next_page = url_for('index')
-            
-            flash(f'Welcome back, {user.username}!', 'success')
+                next_page = url_for('index')
             return redirect(next_page)
         else:
-            flash('Invalid username or password', 'danger')
+            flash('Invalid username or password')
     
     return render_template('login.html', title='Sign In', form=form)
 
 @app.route('/logout')
 def logout():
+    if current_user.is_authenticated:
+        # Clear the user's session in the database
+        current_user.clear_session()
+        db.session.commit()
+    
     logout_user()
+    session.clear()
+    flash('You have been logged out successfully.', 'info')
     return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -714,6 +742,24 @@ def edit_user(user_id):
         return redirect(url_for('admin_dashboard'))
         
     return render_template('admin/edit_user.html', form=form, user=user)
+
+@app.route('/admin/force_logout/<int:user_id>')
+@login_required
+@admin_required
+def force_logout_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Ensure admin can manage this user
+    if not current_user.can_manage_user(user):
+        flash('You do not have permission to manage this user.')
+        return redirect(url_for('admin_dashboard'))
+    
+    # Clear the user's session
+    user.clear_session()
+    db.session.commit()
+    
+    flash(f'User {user.username} has been forcefully logged out.', 'success')
+    return redirect(url_for('admin_dashboard'))
 
 # Apply rate limiting to API endpoints
 @app.route('/api/provinces/<region_code>')
