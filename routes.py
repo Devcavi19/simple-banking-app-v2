@@ -1,15 +1,16 @@
-from flask import render_template, redirect, url_for, flash, request, session, jsonify
+from flask import render_template, redirect, url_for, flash, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.urls import url_parse
 from app import app, csrf
 from extensions import db, limiter
-from forms import LoginForm, RegistrationForm, TransferForm, ResetPasswordRequestForm, ResetPasswordForm, DepositForm, UserEditForm, ConfirmTransferForm, SetPinForm
+from forms import LoginForm, RegistrationForm, TransferForm, ResetPasswordRequestForm, ResetPasswordForm, DepositForm, UserEditForm, ConfirmTransferForm, ChangePasswordForm, SetPinForm, ResetPinForm
 from models import User, Transaction
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
 import os
 from functools import wraps
 import psgc_api
 import datetime
+import uuid
 
 # Context processor to provide current year to all templates
 @app.context_processor
@@ -36,6 +37,22 @@ def manager_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# First login check decorator
+def first_login_check(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.is_authenticated:
+            # Check if user needs to set PIN (first time login)
+            if not current_user.pin_hash:
+                flash('Please set up your 6-digit PIN before continuing.', 'warning')
+                return redirect(url_for('set_pin'))
+            # Check if user needs to change password (admin-created account)
+            if current_user.force_password_change:
+                flash('You must change your password before continuing.', 'warning')
+                return redirect(url_for('change_password'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Email functionality (simulated for this example)
 def send_password_reset_email(user):
     # In a real app, this would send an actual email with a reset token
@@ -45,9 +62,42 @@ def send_password_reset_email(user):
     reset_url = url_for('reset_password', token=token, _external=True)
     flash(f'Password reset link (would be emailed): {reset_url}')
 
+# Session timeout checker
+@app.before_request
+def check_session_timeout():
+    if current_user.is_authenticated:
+        # Skip check for change_password route if user has force_password_change flag
+        if current_user.force_password_change and request.endpoint == 'change_password':
+            return
+            
+        # Skip for static files
+        if request.path.startswith('/static'):
+            return
+            
+        # Check if session is permanent (should always be for logged in users)
+        if not session.permanent:
+            session.permanent = True  # Make it permanent if it's not
+            
+        # Check last activity time
+        last_active = session.get('last_active_time', None)
+        now = datetime.datetime.utcnow()
+        
+        if last_active:
+            last_active = datetime.datetime.fromisoformat(last_active)
+            # If inactive for more than the permanent session lifetime, log them out
+            timeout = app.config.get('PERMANENT_SESSION_LIFETIME', datetime.timedelta(minutes=30))
+            if now - last_active > timeout:
+                logout_user()
+                flash('Your session has expired due to inactivity. Please log in again.')
+                return redirect(url_for('login'))
+        
+        # Update last activity time
+        session['last_active_time'] = now.isoformat()
+
 @app.route('/')
 @app.route('/index')
 @login_required
+@first_login_check
 def index():
     if current_user.status != 'active' and not current_user.is_admin and not current_user.is_manager:
         flash('Your account is awaiting approval from an administrator.')
@@ -64,41 +114,37 @@ def about():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        
-        # Check if this is an old SHA-256 password hash (exactly 64 characters)
-        # SHA-256 hashes are 64 characters long, bcrypt hashes start with $2b$
-        if user and user.password_hash and len(user.password_hash) == 64 and not user.password_hash.startswith('$2b$'):
-            import hashlib
-            # Verify with old method
-            sha2_hash = hashlib.sha256(form.password.data.encode()).hexdigest()
-            if sha2_hash == user.password_hash:
-                # Upgrade to bcrypt
-                user.set_password(form.password.data)
-                db.session.commit()
-                # Continue with login
-            else:
-                flash('Invalid username or password')
-                return redirect(url_for('login'))
-        elif user is None or not user.check_password(form.password.data):
-            flash('Invalid username or password')
-            return redirect(url_for('login'))
-        
-        # Check if user account is active (unless they're an admin or manager)
-        if user.status != 'active' and not user.is_admin and not user.is_manager:
+        if user and user.check_password(form.password.data):
             if user.status == 'pending':
-                flash('Your account is awaiting approval from an administrator.')
-            else:  # deactivated
-                flash('Your account has been deactivated. Please contact an administrator.')
-            return redirect(url_for('login'))
+                flash('Your account is pending approval. Please contact an administrator.', 'warning')
+                return redirect(url_for('login'))
+            elif user.status == 'deactivated':
+                flash('Your account has been deactivated. Please contact an administrator.', 'danger')
+                return redirect(url_for('login'))
             
-        login_user(user)
-        next_page = request.args.get('next')
-        if not next_page or url_parse(next_page).netloc != '':
-            next_page = url_for('index')
-        return redirect(next_page)
+            login_user(user)
+            session.permanent = True
+            session['last_activity'] = datetime.datetime.utcnow().isoformat()
+            
+            next_page = request.args.get('next')
+            if not next_page or url_parse(next_page).netloc != '':
+                # Check if user needs to set PIN or change password
+                if not user.pin_hash:
+                    next_page = url_for('set_pin')
+                elif user.force_password_change:
+                    next_page = url_for('change_password')
+                else:
+                    next_page = url_for('index')
+            
+            flash(f'Welcome back, {user.username}!', 'success')
+            return redirect(next_page)
+        else:
+            flash('Invalid username or password', 'danger')
+    
     return render_template('login.html', title='Sign In', form=form)
 
 @app.route('/logout')
@@ -123,19 +169,27 @@ def register():
     return render_template('register.html', title='Register', form=form)
 
 @app.route('/set_pin', methods=['GET', 'POST'])
+@login_required
 def set_pin():
-    username = request.args.get('username')
-    user = User.query.filter_by(username=username).first() if username else None
+    # If user already has a PIN and is not forced to change it, redirect to account
+    if current_user.pin_hash and not request.args.get('reset'):
+        flash('You already have a PIN set. Use the reset PIN option to change it.', 'info')
+        return redirect(url_for('account'))
+    
     form = SetPinForm()
-    if form.validate_on_submit() and user:
-        user.set_pin(form.pin.data)
+    if form.validate_on_submit():
+        current_user.set_pin(form.pin.data)
         db.session.commit()
-        flash('Your PIN has been set! You can now log in.')
-        return redirect(url_for('login'))
-    return render_template('set_pin.html', form=form, username=username)
+        flash('Your PIN has been set successfully!', 'success')
+        
+        # If this was a forced PIN setup, redirect to account page
+        return redirect(url_for('account'))
+    
+    return render_template('set_pin.html', title='Set PIN', form=form)
 
 @app.route('/account')
 @login_required
+@first_login_check
 def account():
     if current_user.status != 'active' and not current_user.is_admin and not current_user.is_manager:
         flash('Your account is awaiting approval from an administrator.')
@@ -147,6 +201,7 @@ def account():
 @app.route('/transfer', methods=['GET', 'POST'])
 @login_required
 @limiter.limit("20 per hour")
+@first_login_check
 def transfer():
     if current_user.status != 'active' and not current_user.is_admin and not current_user.is_manager:
         flash('Your account is awaiting approval from an administrator.')
@@ -214,13 +269,20 @@ def transfer():
 @app.route('/reset_pin', methods=['GET', 'POST'])
 @login_required
 def reset_pin():
-    form = SetPinForm()
+    form = ResetPinForm()
     if form.validate_on_submit():
+        # Verify current PIN
+        if not current_user.check_pin(form.current_pin.data):
+            flash('Current PIN is incorrect. Please try again.', 'danger')
+            return render_template('reset_pin.html', title='Reset PIN', form=form)
+        
+        # Set new PIN
         current_user.set_pin(form.pin.data)
         db.session.commit()
-        flash('Your PIN has been reset!')
+        flash('Your PIN has been reset successfully!', 'success')
         return redirect(url_for('account'))
-    return render_template('reset_pin.html', form=form)
+    
+    return render_template('reset_pin.html', title='Reset PIN', form=form)
 
 @app.route('/execute_transfer', methods=['POST'])
 @login_required
@@ -300,6 +362,25 @@ def reset_password(token):
         return redirect(url_for('login'))
     return render_template('reset_password.html', form=form)
 
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        # Verify current password
+        if current_user.check_password(form.current_password.data):
+            # Set new password
+            current_user.set_password(form.new_password.data)
+            # Clear force_password_change flag
+            current_user.force_password_change = False
+            db.session.commit()
+            flash('Your password has been changed successfully.')
+            return redirect(url_for('index'))
+        else:
+            flash('Current password is incorrect.')
+    
+    return render_template('change_password.html', title='Change Password', form=form)
+
 # Admin routes
 @app.route('/admin')
 @login_required
@@ -355,11 +436,11 @@ def deactivate_user(user_id):
 def create_account():
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(username=form.username.data, email=form.email.data, status='active')
+        user = User(username=form.username.data, email=form.email.data, status='active', force_password_change=True)
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
-        flash('User account has been created.')
+        flash('User account has been created. User will be required to change password on first login.')
         return redirect(url_for('admin_dashboard'))
     return render_template('admin/create_account.html', title='Create User Account', form=form)
 
@@ -370,6 +451,10 @@ def create_account():
 def admin_deposit():
     form = DepositForm()
     
+    # Initialize or increment PIN attempt counter
+    if 'admin_pin_attempts' not in session:
+        session['admin_pin_attempts'] = 0
+    
     # Handle account lookup from query parameters (for the lookup button)
     account_details = None
     if request.args.get('account_number'):
@@ -377,6 +462,21 @@ def admin_deposit():
         account_details = User.query.filter_by(account_number=account_number).first()
     
     if form.validate_on_submit():
+        # Verify admin PIN first
+        if not current_user.check_pin(form.pin.data):
+            session['admin_pin_attempts'] += 1
+            form.pin.errors.append("Incorrect PIN.")
+            if session['admin_pin_attempts'] >= 3:
+                flash('You have entered an incorrect PIN 3 times. Please reset your PIN.', 'danger')
+                session['admin_pin_attempts'] = 0  # Reset counter after lockout
+                return redirect(url_for('reset_pin'))
+            else:
+                flash(f'Incorrect PIN. Attempt {session["admin_pin_attempts"]}/3.', 'warning')
+            return render_template('admin/deposit.html', title='Deposit Funds', form=form, account_details=account_details)
+        
+        # Reset counter on successful PIN entry
+        session['admin_pin_attempts'] = 0
+        
         user = User.query.filter_by(account_number=form.account_number.data).first()
         if not user:
             flash('User not found')
@@ -413,7 +513,7 @@ def edit_user(user_id):
         flash('You do not have permission to edit this user.')
         return redirect(url_for('admin_dashboard'))
     
-    form = UserEditForm(user.email)
+    form = UserEditForm(original_email=user.email)
     
     # Load region choices for dropdown (always needed)
     regions = psgc_api.get_regions()
@@ -599,9 +699,10 @@ def edit_user(user_id):
         if changes:
             # Create a transaction record for the user edit
             transaction = Transaction(
-                sender_id=current_user.id,  # Admin making the change
-                receiver_id=user.id,        # User being modified
-                amount=None,                # No money involved
+                transaction_id=str(uuid.uuid4()),
+                sender_id=current_user.id,
+                receiver_id=user.id,
+                amount=0.0,  # Changed from None to 0.0
                 transaction_type='user_edit',
                 details="\n".join(changes),
                 timestamp=datetime.datetime.utcnow()
@@ -609,10 +710,10 @@ def edit_user(user_id):
             db.session.add(transaction)
         
         db.session.commit()
-        flash(f'User information for {user.username} has been updated.')
+        flash('User information updated successfully!', 'success')
         return redirect(url_for('admin_dashboard'))
-    
-    return render_template('admin/edit_user.html', title='Edit User', form=form, user=user)
+        
+    return render_template('admin/edit_user.html', form=form, user=user)
 
 # Apply rate limiting to API endpoints
 @app.route('/api/provinces/<region_code>')
@@ -678,51 +779,140 @@ def manager_dashboard():
 @manager_required
 @limiter.limit("10 per hour")
 def create_admin():
-    form = RegistrationForm()
+    from forms import CreateAdminForm  # Import the new form
+    
+    form = CreateAdminForm()
+    
+    # Initialize or increment PIN attempt counter
+    if 'manager_pin_attempts' not in session:
+        session['manager_pin_attempts'] = 0
+
     if form.validate_on_submit():
-        admin = User(username=form.username.data, email=form.email.data, status='active', is_admin=True)
+        # Verify manager PIN first
+        if not current_user.check_pin(form.pin.data):
+            session['manager_pin_attempts'] += 1
+            form.pin.errors.append("Incorrect PIN.")
+            if session['manager_pin_attempts'] >= 3:
+                flash('Too many incorrect PIN attempts. Please try again later.', 'danger')
+                return redirect(url_for('manager_dashboard'))
+            else:
+                flash(f'Incorrect PIN. {3 - session["manager_pin_attempts"]} attempts remaining.', 'warning')
+            return render_template('manager/create_admin.html', title='Create Admin Account', form=form)
+
+        # Reset counter on successful PIN entry
+        session['manager_pin_attempts'] = 0
+
+        admin = User(username=form.username.data, email=form.email.data, status='active', is_admin=True, force_password_change=True)
         admin.set_password(form.password.data)
         db.session.add(admin)
         db.session.commit()
-        flash('Admin account has been created')
+        flash('Admin account has been created successfully!', 'success')
         return redirect(url_for('admin_list'))
+    
     return render_template('manager/create_admin.html', title='Create Admin Account', form=form)
+
+@app.route('/manager/toggle_admin_with_pin', methods=['POST'])
+@login_required
+@manager_required
+def toggle_admin_with_pin():
+    # Create a form instance to handle CSRF validation
+    from forms import ToggleAdminForm
+    form = ToggleAdminForm()
+    
+    if not form.validate_on_submit():
+        flash('Invalid form submission. Please try again.', 'danger')
+        return redirect(request.referrer or url_for('manager_dashboard'))
+    
+    user_id = form.user_id.data
+    action = form.action.data
+    pin = form.pin.data
+    
+    if not user_id or not action or not pin:
+        flash('Missing required information.', 'danger')
+        return redirect(url_for('manager_dashboard'))
+    
+    # Initialize or increment PIN attempt counter
+    if 'manager_pin_attempts' not in session:
+        session['manager_pin_attempts'] = 0
+
+    # Verify manager PIN
+    if not current_user.check_pin(pin):
+        session['manager_pin_attempts'] += 1
+        if session['manager_pin_attempts'] >= 3:
+            flash('Too many incorrect PIN attempts. Access temporarily restricted.', 'danger')
+            return redirect(url_for('manager_dashboard'))
+        else:
+            flash(f'Incorrect PIN. {3 - session["manager_pin_attempts"]} attempts remaining.', 'warning')
+        return redirect(request.referrer or url_for('manager_dashboard'))
+
+    # Reset counter on successful PIN entry
+    session['manager_pin_attempts'] = 0
+
+    user = User.query.get_or_404(user_id)
+    
+    # Managers can only modify admins, not other managers
+    if user.is_manager:
+        flash('You cannot modify another manager account.', 'danger')
+        return redirect(url_for('manager_dashboard'))
+    
+    if action == 'promote_admin':
+        user.is_admin = True
+        user.status = 'active'  # Set status to active when promoting to admin
+        flash(f'User {user.username} has been promoted to admin.', 'success')
+        
+        # Create audit record
+        transaction = Transaction(
+            transaction_id=str(uuid.uuid4()),
+            sender_id=current_user.id,
+            receiver_id=user.id,
+            amount=0.0,
+            transaction_type='admin_promotion',
+            details=f'Manager {current_user.username} promoted user {user.username} to admin',
+            timestamp=datetime.datetime.utcnow()
+        )
+        db.session.add(transaction)
+        
+    elif action == 'remove_admin':
+        user.is_admin = False
+        flash(f'User {user.username} has been demoted from admin.', 'success')
+        
+        # Create audit record
+        transaction = Transaction(
+            transaction_id=str(uuid.uuid4()),
+            sender_id=current_user.id,
+            receiver_id=user.id,
+            amount=0.0,
+            transaction_type='admin_demotion',
+            details=f'Manager {current_user.username} removed admin privileges from {user.username}',
+            timestamp=datetime.datetime.utcnow()
+        )
+        db.session.add(transaction)
+    
+    db.session.commit()
+    return redirect(request.referrer or url_for('manager_dashboard'))
 
 @app.route('/manager/toggle_admin/<int:user_id>')
 @login_required
 @manager_required
 def toggle_admin(user_id):
+    # This route now just redirects to the appropriate list page
+    # The actual toggle action is handled by toggle_admin_with_pin
     user = User.query.get_or_404(user_id)
     
-    # Managers can only modify admins, not other managers
-    if user.is_manager:
-        flash('You cannot modify another manager account.')
-        return redirect(url_for('manager_dashboard'))
-    
-    # Store original state to determine redirect
-    was_admin = user.is_admin
-    
-    # Toggle admin status
-    user.is_admin = not user.is_admin
-    
-    # If promoting to admin, ensure account is active
     if user.is_admin:
-        user.status = 'active'  # Set status to active when promoting to admin
-        flash(f'User {user.username} has been promoted to admin.')
-        db.session.commit()
-        return redirect(url_for('user_list'))
-    else:
-        flash(f'User {user.username} has been demoted from admin.')
-        db.session.commit()
         return redirect(url_for('admin_list'))
+    else:
+        return redirect(url_for('user_list'))
 
 @app.route('/manager/user_list')
 @login_required
 @manager_required
 def user_list():
+    from forms import ToggleAdminForm
     # Get all users except admins and managers
     users = User.query.filter(User.is_admin.is_(False), User.is_manager.is_(False)).all()
-    return render_template('manager/user_list.html', title='All Users', users=users)
+    form = ToggleAdminForm()  # Create form instance for CSRF
+    return render_template('manager/user_list.html', title='All Users', users=users, form=form)
 
 @app.route('/manager/admin_list')
 @login_required
@@ -949,4 +1139,4 @@ def manager_transfers():
     return render_template('manager/transfers.html', 
                          title='Transfer Transactions', 
                          transactions=transactions,
-                         users=users) 
+                         users=users)
