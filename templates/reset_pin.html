@@ -5,22 +5,64 @@
     <div class="col-md-6 offset-md-3">
         <div class="card">
             <div class="card-header">
-                <h4>Reset Your 6-digit PIN</h4>
+                <h4>Reset Your PIN</h4>
             </div>
             <div class="card-body">
+                <div class="alert alert-warning">
+                    <strong>PIN Reset:</strong> You are resetting your transaction PIN. Enter your current PIN first, then set your new PIN.
+                </div>
+                
                 <form method="post" novalidate>
                     {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.current_pin.label(class="form-label") }}
+                        {{ form.current_pin(class="form-control", type="password", maxlength="6", pattern="[0-9]{6}", placeholder="Enter your current PIN", autocomplete="current-password", inputmode="numeric") }}
+                        <small class="text-muted">Enter your existing 6-digit PIN</small>
+                        {% for error in form.current_pin.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <hr class="my-4">
+                    
                     <div class="mb-3">
                         {{ form.pin.label(class="form-label") }}
-                        {{ form.pin(class="form-control", maxlength="6", autocomplete="off", inputmode="numeric", pattern="\d{6}") }}
+                        {{ form.pin(class="form-control", type="password", maxlength="6", pattern="[0-9]{6}", placeholder="Enter new 6-digit PIN", autocomplete="new-password", inputmode="numeric") }}
+                        <small class="text-muted">Enter exactly 6 digits (0-9 only)</small>
                         {% for error in form.pin.errors %}
                         <div class="text-danger">{{ error }}</div>
                         {% endfor %}
                     </div>
+                    
+                    <div class="mb-3">
+                        {{ form.confirm_pin.label(class="form-label") }}
+                        {{ form.confirm_pin(class="form-control", type="password", maxlength="6", pattern="[0-9]{6}", placeholder="Confirm your new 6-digit PIN", autocomplete="new-password", inputmode="numeric") }}
+                        <small class="text-muted">Re-enter your new 6-digit PIN</small>
+                        {% for error in form.confirm_pin.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
                     <div class="d-grid gap-2">
-                        {{ form.submit(class="btn btn-primary") }}
+                        {{ form.submit(class="btn btn-warning") }}
                     </div>
                 </form>
+                
+                <div class="mt-3 text-center">
+                    <a href="{{ url_for('account') }}" class="btn btn-secondary">Cancel</a>
+                </div>
+
+                <div class="mt-3">
+                    <div class="alert alert-info">
+                        <strong>Security Note:</strong>
+                        <ul class="mb-0">
+                            <li>You must enter your current PIN to verify your identity</li>
+                            <li>Your new PIN must be different from your current PIN</li>
+                            <li>Choose a PIN that's easy for you to remember but hard for others to guess</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -28,10 +70,108 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var pinInput = document.querySelector('input[name="pin"]');
-    if (pinInput) {
-        pinInput.addEventListener('input', function(e) {
+    const currentPinInput = document.querySelector('input[name="current_pin"]');
+    const pinInput = document.querySelector('input[name="pin"]');
+    const confirmPinInput = document.querySelector('input[name="confirm_pin"]');
+    const form = document.querySelector('form');
+    
+    // Restrict input to numbers only
+    function restrictToNumbers(input) {
+        input.addEventListener('input', function(e) {
             this.value = this.value.replace(/\D/g, '');
+            if (this.value.length > 6) {
+                this.value = this.value.slice(0, 6);
+            }
+        });
+    }
+    
+    if (currentPinInput) {
+        restrictToNumbers(currentPinInput);
+    }
+    
+    if (pinInput) {
+        restrictToNumbers(pinInput);
+    }
+    
+    if (confirmPinInput) {
+        restrictToNumbers(confirmPinInput);
+    }
+    
+    // Real-time PIN confirmation validation
+    function validatePinMatch() {
+        if (confirmPinInput && confirmPinInput.value && pinInput && pinInput.value !== confirmPinInput.value) {
+            confirmPinInput.setCustomValidity('New PINs do not match');
+            confirmPinInput.classList.add('is-invalid');
+        } else {
+            if (confirmPinInput) {
+                confirmPinInput.setCustomValidity('');
+                confirmPinInput.classList.remove('is-invalid');
+            }
+        }
+    }
+    
+    // Check if new PIN is different from current PIN
+    function validateNewPin() {
+        if (currentPinInput && pinInput && currentPinInput.value && pinInput.value && currentPinInput.value === pinInput.value) {
+            pinInput.setCustomValidity('New PIN must be different from current PIN');
+            pinInput.classList.add('is-invalid');
+        } else {
+            if (pinInput) {
+                pinInput.setCustomValidity('');
+                pinInput.classList.remove('is-invalid');
+            }
+        }
+    }
+    
+    if (currentPinInput) {
+        currentPinInput.addEventListener('input', validateNewPin);
+    }
+    
+    if (pinInput) {
+        pinInput.addEventListener('input', function() {
+            validatePinMatch();
+            validateNewPin();
+        });
+    }
+    
+    if (confirmPinInput) {
+        confirmPinInput.addEventListener('input', validatePinMatch);
+    }
+    
+    // Form submission validation
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // Check current PIN
+            if (currentPinInput && (!currentPinInput.value || currentPinInput.value.length !== 6 || !/^\d{6}$/.test(currentPinInput.value))) {
+                e.preventDefault();
+                alert('Please enter your current 6-digit PIN.');
+                currentPinInput.focus();
+                return false;
+            }
+            
+            // Check new PIN
+            if (pinInput && (pinInput.value.length !== 6 || !/^\d{6}$/.test(pinInput.value))) {
+                e.preventDefault();
+                alert('New PIN must be exactly 6 digits.');
+                pinInput.focus();
+                return false;
+            }
+            
+            // Check PIN confirmation
+            if (pinInput && confirmPinInput && pinInput.value !== confirmPinInput.value) {
+                e.preventDefault();
+                alert('New PINs do not match. Please try again.');
+                confirmPinInput.focus();
+                return false;
+            }
+            
+            // Check if new PIN is different from current PIN
+            if (currentPinInput && pinInput && currentPinInput.value === pinInput.value) {
+                e.preventDefault();
+                alert('New PIN must be different from your current PIN.');
+                pinInput.focus();
+                return false;
+            }
         });
     }
 });
