@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-header bg-danger text-white">
+                    <h4>Internal Server Error</h4>
+                </div>
+                <div class="card-body">
+                    <h1 class="display-1 text-danger">500</h1>
+                    <p class="lead">Something went wrong on our end.</p>
+                    <p>We're working to fix this issue. Please try again later.</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Return Home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
