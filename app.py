@@ -9,6 +9,7 @@ import secrets
 import pymysql
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter.errors import RateLimitExceeded
+from urllib.parse import quote_plus
 
 # Import extensions
 from extensions import db, login_manager, bcrypt, limiter
