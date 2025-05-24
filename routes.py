@@ -1,15 +1,16 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, redirect, url_for, flash, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.urls import url_parse
 from app import app, csrf
 from extensions import db, limiter
-from forms import LoginForm, RegistrationForm, TransferForm, ResetPasswordRequestForm, ResetPasswordForm, DepositForm, UserEditForm, ConfirmTransferForm
+from forms import LoginForm, RegistrationForm, TransferForm, ResetPasswordRequestForm, ResetPasswordForm, DepositForm, UserEditForm, ConfirmTransferForm, ChangePasswordForm
 from models import User, Transaction
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
 import os
 from functools import wraps
 import psgc_api
 import datetime
+import uuid
 
 # Context processor to provide current year to all templates
 @app.context_processor
@@ -36,6 +37,18 @@ def manager_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# First login check decorator
+def first_login_check(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.is_authenticated and current_user.force_password_change:
+            # Skip if already on the change password route
+            if request.endpoint != 'change_password':
+                flash('You need to change your password before continuing.')
+                return redirect(url_for('change_password'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Email functionality (simulated for this example)
 def send_password_reset_email(user):
     # In a real app, this would send an actual email with a reset token
@@ -45,9 +58,42 @@ def send_password_reset_email(user):
     reset_url = url_for('reset_password', token=token, _external=True)
     flash(f'Password reset link (would be emailed): {reset_url}')
 
+# Session timeout checker
+@app.before_request
+def check_session_timeout():
+    if current_user.is_authenticated:
+        # Skip check for change_password route if user has force_password_change flag
+        if current_user.force_password_change and request.endpoint == 'change_password':
+            return
+            
+        # Skip for static files
+        if request.path.startswith('/static'):
+            return
+            
+        # Check if session is permanent (should always be for logged in users)
+        if not session.permanent:
+            session.permanent = True  # Make it permanent if it's not
+            
+        # Check last activity time
+        last_active = session.get('last_active_time', None)
+        now = datetime.datetime.utcnow()
+        
+        if last_active:
+            last_active = datetime.datetime.fromisoformat(last_active)
+            # If inactive for more than the permanent session lifetime, log them out
+            timeout = app.config.get('PERMANENT_SESSION_LIFETIME', datetime.timedelta(minutes=30))
+            if now - last_active > timeout:
+                logout_user()
+                flash('Your session has expired due to inactivity. Please log in again.')
+                return redirect(url_for('login'))
+        
+        # Update last activity time
+        session['last_active_time'] = now.isoformat()
+
 @app.route('/')
 @app.route('/index')
 @login_required
+@first_login_check
 def index():
     if current_user.status != 'active' and not current_user.is_admin and not current_user.is_manager:
         flash('Your account is awaiting approval from an administrator.')
@@ -85,8 +131,7 @@ def login():
         elif user is None or not user.check_password(form.password.data):
             flash('Invalid username or password')
             return redirect(url_for('login'))
-        
-        # Check if user account is active (unless they're an admin or manager)
+          # Check if user account is active (unless they're an admin or manager)
         if user.status != 'active' and not user.is_admin and not user.is_manager:
             if user.status == 'pending':
                 flash('Your account is awaiting approval from an administrator.')
@@ -94,7 +139,10 @@ def login():
                 flash('Your account has been deactivated. Please contact an administrator.')
             return redirect(url_for('login'))
             
+        # Set session to permanent for timeout functionality
         login_user(user)
+        session.permanent = True
+        
         next_page = request.args.get('next')
         if not next_page or url_parse(next_page).netloc != '':
             next_page = url_for('index')
@@ -123,6 +171,7 @@ def register():
 
 @app.route('/account')
 @login_required
+@first_login_check
 def account():
     if current_user.status != 'active' and not current_user.is_admin and not current_user.is_manager:
         flash('Your account is awaiting approval from an administrator.')
@@ -134,6 +183,7 @@ def account():
 @app.route('/transfer', methods=['GET', 'POST'])
 @login_required
 @limiter.limit("20 per hour")
+@first_login_check
 def transfer():
     if current_user.status != 'active' and not current_user.is_admin and not current_user.is_manager:
         flash('Your account is awaiting approval from an administrator.')
@@ -258,6 +308,25 @@ def reset_password(token):
         return redirect(url_for('login'))
     return render_template('reset_password.html', form=form)
 
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        # Verify current password
+        if current_user.check_password(form.current_password.data):
+            # Set new password
+            current_user.set_password(form.new_password.data)
+            # Clear force_password_change flag
+            current_user.force_password_change = False
+            db.session.commit()
+            flash('Your password has been changed successfully.')
+            return redirect(url_for('index'))
+        else:
+            flash('Current password is incorrect.')
+    
+    return render_template('change_password.html', title='Change Password', form=form)
+
 # Admin routes
 @app.route('/admin')
 @login_required
@@ -313,11 +382,11 @@ def deactivate_user(user_id):
 def create_account():
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(username=form.username.data, email=form.email.data, status='active')
+        user = User(username=form.username.data, email=form.email.data, status='active', force_password_change=True)
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
-        flash('User account has been created.')
+        flash('User account has been created. User will be required to change password on first login.')
         return redirect(url_for('admin_dashboard'))
     return render_template('admin/create_account.html', title='Create User Account', form=form)
 
@@ -371,7 +440,7 @@ def edit_user(user_id):
         flash('You do not have permission to edit this user.')
         return redirect(url_for('admin_dashboard'))
     
-    form = UserEditForm(user.email)
+    form = UserEditForm(original_email=user.email)
     
     # Load region choices for dropdown (always needed)
     regions = psgc_api.get_regions()
@@ -557,9 +626,10 @@ def edit_user(user_id):
         if changes:
             # Create a transaction record for the user edit
             transaction = Transaction(
-                sender_id=current_user.id,  # Admin making the change
-                receiver_id=user.id,        # User being modified
-                amount=None,                # No money involved
+                transaction_id=str(uuid.uuid4()),
+                sender_id=current_user.id,
+                receiver_id=user.id,
+                amount=0.0,  # Changed from None to 0.0
                 transaction_type='user_edit',
                 details="\n".join(changes),
                 timestamp=datetime.datetime.utcnow()
@@ -567,10 +637,10 @@ def edit_user(user_id):
             db.session.add(transaction)
         
         db.session.commit()
-        flash(f'User information for {user.username} has been updated.')
+        flash('User information updated successfully!', 'success')
         return redirect(url_for('admin_dashboard'))
-    
-    return render_template('admin/edit_user.html', title='Edit User', form=form, user=user)
+        
+    return render_template('admin/edit_user.html', form=form, user=user)
 
 # Apply rate limiting to API endpoints
 @app.route('/api/provinces/<region_code>')
@@ -907,4 +977,4 @@ def manager_transfers():
     return render_template('manager/transfers.html', 
                          title='Transfer Transactions', 
                          transactions=transactions,
-                         users=users) 
+                         users=users)

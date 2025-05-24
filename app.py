@@ -26,6 +26,10 @@ pymysql.install_as_MySQLdb()
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
+    
+    # Session configuration for timeout (30 minutes of inactivity)
+    app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(minutes=30)
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
     # CSRF Protection
     csrf.init_app(app)
@@ -113,4 +117,4 @@ if __name__ == '__main__':
     
     with app.app_context():
         db.create_all()
-    app.run(debug=True) 
+    app.run(debug=True)
