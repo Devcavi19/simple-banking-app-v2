@@ -1,9 +1,9 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, redirect, url_for, flash, request, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.urls import url_parse
 from app import app, csrf
 from extensions import db, limiter
-from forms import LoginForm, RegistrationForm, TransferForm, ResetPasswordRequestForm, ResetPasswordForm, DepositForm, UserEditForm, ConfirmTransferForm
+from forms import LoginForm, RegistrationForm, TransferForm, ResetPasswordRequestForm, ResetPasswordForm, DepositForm, UserEditForm, ConfirmTransferForm, SetPinForm
 from models import User, Transaction
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
 import os
@@ -118,8 +118,21 @@ def register():
         db.session.add(user)
         db.session.commit()
         flash('Your account has been registered and is awaiting admin approval.')
-        return redirect(url_for('login'))
+        flash('Please set your 6-digit PIN.')
+        return redirect(url_for('set_pin', username=user.username))
     return render_template('register.html', title='Register', form=form)
+
+@app.route('/set_pin', methods=['GET', 'POST'])
+def set_pin():
+    username = request.args.get('username')
+    user = User.query.filter_by(username=username).first() if username else None
+    form = SetPinForm()
+    if form.validate_on_submit() and user:
+        user.set_pin(form.pin.data)
+        db.session.commit()
+        flash('Your PIN has been set! You can now log in.')
+        return redirect(url_for('login'))
+    return render_template('set_pin.html', form=form, username=username)
 
 @app.route('/account')
 @login_required
@@ -140,7 +153,25 @@ def transfer():
         return redirect(url_for('index'))
         
     form = TransferForm()
+    # Initialize or increment PIN attempt counter
+    if 'pin_attempts' not in session:
+        session['pin_attempts'] = 0
+
     if form.validate_on_submit():
+
+        if not current_user.check_pin(form.pin.data):
+            session['pin_attempts'] += 1
+            form.pin.errors.append("Incorrect PIN.")
+            if session['pin_attempts'] >= 3:
+                flash('You have entered an incorrect PIN 3 times. Please reset your PIN.', 'danger')
+                session['pin_attempts'] = 0  # Reset counter after lockout
+                return redirect(url_for('reset_pin'))  # Or your PIN reset route
+            else:
+                flash(f'Incorrect PIN. Attempt {session["pin_attempts"]}/3.', 'warning')
+            return render_template('transfer.html', title='Transfer Money', form=form)
+        # Reset counter on successful PIN entry
+        session['pin_attempts'] = 0
+
         # Find recipient based on transfer type
         recipient = None
         if form.transfer_type.data == 'username':
@@ -179,6 +210,17 @@ def transfer():
                               form=confirm_form)
     
     return render_template('transfer.html', title='Transfer Money', form=form)
+
+@app.route('/reset_pin', methods=['GET', 'POST'])
+@login_required
+def reset_pin():
+    form = SetPinForm()
+    if form.validate_on_submit():
+        current_user.set_pin(form.pin.data)
+        db.session.commit()
+        flash('Your PIN has been reset!')
+        return redirect(url_for('account'))
+    return render_template('reset_pin.html', form=form)
 
 @app.route('/execute_transfer', methods=['POST'])
 @login_required
