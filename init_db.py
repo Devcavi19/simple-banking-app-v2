@@ -12,117 +12,94 @@ load_dotenv()
 
 def init_mysql_database():
     """Initialize the MySQL database directly in Python instead of using schema.sql."""
-    # Use defaults to avoid None values
     mysql_user = os.environ.get('MYSQL_USER')
     mysql_password = os.environ.get('MYSQL_PASSWORD')
     mysql_host = os.environ.get('MYSQL_HOST')
     mysql_port = os.environ.get('MYSQL_PORT')
     mysql_database = os.environ.get('MYSQL_DATABASE')
     
-    # Convert port to string to avoid type issues
-    mysql_port = str(mysql_port)
-    
-    # Try to connect to MySQL server without database (to create it if needed)
     try:
-        print("Attempting to connect to MySQL server...")
-        print(f"Connection details: {mysql_host}:{mysql_port} as {mysql_user}")
         connection = pymysql.connect(
             host=mysql_host,
             port=int(mysql_port),
             user=mysql_user,
-            password=mysql_password,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=10  # Add timeout to prevent hanging
+            password=mysql_password
         )
         
-        print("Connected to MySQL server successfully!")
-        
-        try:
-            with connection.cursor() as cursor:
-                # Drop database if exists
-                print("Dropping database if it exists...")
-                cursor.execute(f"DROP DATABASE IF EXISTS {mysql_database}")
-                
-                # Create database
-                print("Creating database...")
-                cursor.execute(f"CREATE DATABASE {mysql_database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-                
-                # Use the database
-                print("Switching to database...")
-                cursor.execute(f"USE {mysql_database}")
-                
-                # Create users table
-                print("Creating users table...")
-                cursor.execute("""
-                CREATE TABLE user (
-                  id INT AUTO_INCREMENT PRIMARY KEY,
-                  username VARCHAR(64) NOT NULL UNIQUE,
-                  email VARCHAR(120) NOT NULL UNIQUE,
-                  firstname VARCHAR(64),
-                  lastname VARCHAR(64),
-                  address_line VARCHAR(256),
-                  region_code VARCHAR(20),
-                  region_name VARCHAR(100),
-                  province_code VARCHAR(20),
-                  province_name VARCHAR(100),
-                  city_code VARCHAR(20),
-                  city_name VARCHAR(100),
-                  barangay_code VARCHAR(20),
-                  barangay_name VARCHAR(100),
-                  postal_code VARCHAR(10),
-                  phone VARCHAR(20),
-                  password_hash VARCHAR(128) NOT NULL,
-                  account_number VARCHAR(10) NOT NULL UNIQUE,
-                  balance FLOAT DEFAULT 1000.0,
-                  status VARCHAR(20) DEFAULT 'pending',
-                  is_admin BOOLEAN DEFAULT FALSE,
-                  is_manager BOOLEAN DEFAULT FALSE,
-                  date_registered DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  INDEX idx_username (username),
-                  INDEX idx_email (email),
-                  INDEX idx_account_number (account_number)
-                ) ENGINE=InnoDB
-                """)
-                
-                # Create transactions table
-                print("Creating transactions table...")
-                cursor.execute("""
-                CREATE TABLE transaction (
-                  id INT AUTO_INCREMENT PRIMARY KEY,
-                  sender_id INT,
-                  receiver_id INT,
-                  amount FLOAT NULL,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  transaction_type VARCHAR(20) DEFAULT 'transfer',
-                  details TEXT,
-                  FOREIGN KEY (sender_id) REFERENCES user (id),
-                  FOREIGN KEY (receiver_id) REFERENCES user (id),
-                  INDEX idx_sender (sender_id),
-                  INDEX idx_receiver (receiver_id),
-                  INDEX idx_timestamp (timestamp)
-                ) ENGINE=InnoDB
-                """)
-                
-                print("Database schema initialized successfully!")
+        with connection.cursor() as cursor:
+            # Create database
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {mysql_database}")
+            cursor.execute(f"USE {mysql_database}")
             
-            connection.commit()
-        except Exception as sql_error:
-            print(f"Error during SQL execution: {sql_error}")
-            print(traceback.format_exc())
-            return False
-    
+            # Create user table with only one TIMESTAMP column
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              username VARCHAR(64) NOT NULL UNIQUE,
+              email VARCHAR(120) NOT NULL UNIQUE,
+              firstname VARCHAR(64),
+              lastname VARCHAR(64),
+              address_line VARCHAR(256),
+              region_code VARCHAR(20),
+              region_name VARCHAR(100),
+              province_code VARCHAR(20),
+              province_name VARCHAR(100),
+              city_code VARCHAR(20),
+              city_name VARCHAR(100),
+              barangay_code VARCHAR(20),
+              barangay_name VARCHAR(100),
+              postal_code VARCHAR(10),
+              phone VARCHAR(20),
+              password_hash VARCHAR(128) NOT NULL,
+              account_number VARCHAR(10) NOT NULL UNIQUE,
+              balance FLOAT DEFAULT 1000.0,
+              status VARCHAR(20) DEFAULT 'pending',
+              is_admin BOOLEAN DEFAULT FALSE,
+              is_manager BOOLEAN DEFAULT FALSE,
+              date_registered TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              failed_login_attempts INT DEFAULT 0,
+              last_failed_login DATETIME NULL,
+              account_locked_until DATETIME NULL,
+              password_reset_token VARCHAR(100),
+              password_reset_expiry DATETIME NULL,
+              last_password_change DATETIME NULL,
+              totp_secret VARCHAR(32),
+              is_2fa_enabled BOOLEAN DEFAULT FALSE,
+              last_login DATETIME NULL,
+              last_activity DATETIME NULL,
+              force_password_change BOOLEAN DEFAULT FALSE,
+              pin_hash VARCHAR(128),
+              current_session_id VARCHAR(128)
+            ) ENGINE=InnoDB
+            """)
+            
+            # Create transaction table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transaction (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              transaction_id VARCHAR(36),
+              sender_id INT,
+              receiver_id INT,
+              amount FLOAT,
+              timestamp DATETIME NULL,
+              transaction_type VARCHAR(20) DEFAULT 'transfer',
+              details TEXT,
+              FOREIGN KEY (sender_id) REFERENCES user (id),
+              FOREIGN KEY (receiver_id) REFERENCES user (id)
+            ) ENGINE=InnoDB
+            """)
+            
+        connection.commit()
+        print("Database schema created successfully!")
+        
     except Exception as e:
-        print(f"Error initializing database: {e}")
-        print(traceback.format_exc())
+        print(f"Error creating database schema: {e}")
         return False
-    
     finally:
-        if 'connection' in locals() and connection.open:
+        if 'connection' in locals():
             connection.close()
-            print("MySQL connection closed.")
     
-    return True  # Return True on success
+    return True
 
 def init_flask_app_db():
     """Initialize the Flask application's database tables using SQLAlchemy."""
