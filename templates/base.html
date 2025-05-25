@@ -11,74 +11,206 @@
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        body {
-            padding-top: 60px;
-            background-color: #f8f9fa;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .navbar-brand {
-            font-weight: bold;
-        }
-        .card {
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .transaction-item {
-            border-left: 4px solid #dee2e6;
-            padding: 10px;
-            margin-bottom: 10px;
-            background-color: white;
-        }
-        .transaction-item.sent {
-            border-left-color: #dc3545;
-        }
-        .transaction-item.received {
-            border-left-color: #28a745;
-        }
-        .balance-card {
-            background: linear-gradient(135deg, #007bff, #6610f2);
-            color: white;
-        }
-        .flash-messages {
-            margin-top: 10px;
-        }
-        .account-badge {
-            font-size: 12px;
-            padding: 3px 8px;
-            border-radius: 10px;
-            margin-left: 5px;
-        }
-        .content {
-            flex: 1 0 auto;
-        }
+    :root {
+        --primary: #0d6efd;
+        --secondary: #6c757d;
+        --success: #198754;
+        --danger: #dc3545;
+        --info: #0dcaf0;
+        --light: #f8f9fa;
+        --dark: #212529;
+    }
+
+    body {
+        padding-top: 60px;
+        background: linear-gradient(to right, #a1ece2, #f7adf3);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: #343a40;
+    }
+
+    .navbar {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .navbar-brand {
+        font-weight: bold;
+        font-size: 1.25rem;
+        letter-spacing: 0.5px;
+    }
+
+    .nav-link {
+        transition: color 0.3s ease;
+    }
+     .nav-link.active {
+    color: #ebee22 !important; 
+    font-weight: bold;
+    }
+
+
+    .nav-link:hover {
+        color: #f8f9fa !important;
+        text-decoration: underline;
+    }
+
+    .card {
+        margin-bottom: 20px;
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
+    }
+
+
+    .card,
+    .transaction-item {
+    background: linear-gradient(to right, #f0f5f5, #acf7ac);
+    color: #0c0b0b;
+    }
+
+    .card:hover {
+        transform: translateY(-4px);
+    }
+
+    .balance-card {
+        background: linear-gradient(135deg, var(--primary), #6610f2);
+        color: white;
+        border: none;
+    }
+
+    .transaction-item {
+        border-left: 5px solid #dee2e6;
+        padding: 12px 15px;
+        margin-bottom: 12px;
+        border-radius: 6px;
+        background-color: #fff;
+        transition: background-color 0.2s ease;
+    }
+
+    .transaction-item:hover {
+        background-color: #f1f1f1;
+    }
+
+    .transaction-item.sent {
+        border-left-color: var(--danger);
+    }
+
+    .transaction-item.received {
+        border-left-color: var(--success);
+    }
+
+    .flash-messages {
+        margin-top: 15px;
+    }
+
+    .account-badge {
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+        margin-left: 6px;
+    }
+
+    .content {
+        flex: 1 0 auto;
+    }
+
+    .footer {
+        flex-shrink: 0;
+        background: #1c1e21;
+        color: #ddd;
+        padding: 10px 0;
+        margin-top: 10px;
+    }
+
+    .footer h5 {
+        color: #fff;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    .footer a {
+        color: #adb5bd;
+        transition: color 0.2s ease;
+    }
+
+    .footer a:hover {
+        color: var(--info);
+    }
+
+    .social-icons {
+        font-size: 1.5rem;
+    }
+
+    .social-icons a {
+        margin: 0 10px;
+        color: white;
+        transition: color 0.3s ease;
+    }
+
+    .social-icons a:hover {
+        color: var(--primary);
+    }
+    .footer .row > div {
+  text-align: center;
+    }
+
+    .footer ul {
+    padding: 0;
+    }
+
+
+    .footer ul li {
+      margin-bottom: 8px;
+    }
+    /* Dark Mode Styles */
+    body.dark-mode {
+    background: linear-gradient(to right, #969797, #a0879f);
+    color: #f1f1f1;
+    }
+
+    body.dark-mode .card,
+    body.dark-mode .transaction-item {
+    background: linear-gradient(to right, #35504c, #553c54);
+    color: #eaeaea;
+    }
+
+    body.dark-mode .navbar,
+    body.dark-mode .footer {
+    background-color: #1c1c1c !important;
+    }
+
+    body.dark-mode .nav-link,
+    body.dark-mode .navbar-brand {
+    color: #f1f1f1 !important;
+    }
+
+    body.dark-mode .dropdown-menu {
+    background-color: #2a2a2a;
+    color: #fff;
+    }
+
+    body.dark-mode .dropdown-item {
+    color: #fff;
+    }
+
+    body.dark-mode .dropdown-item:hover {
+    background-color: #343a40;
+    }
+
+    @media (max-width: 768px) {
         .footer {
-            flex-shrink: 0;
-            background-color: #343a40;
-            color: white;
-            padding: 25px 0;
-            margin-top: 50px;
+            text-align: center;
         }
-        .footer a {
-            color: #007bff;
-            text-decoration: none;
+
+        .footer .row > div {
+            margin-bottom: 30px;
         }
-        .footer a:hover {
-            color: #0056b3;
-            text-decoration: underline;
-        }
-        .social-icons {
-            font-size: 1.5rem;
-        }
-        .social-icons a {
-            margin: 0 10px;
-            color: white;
-        }
-        .social-icons a:hover {
-            color: #007bff;
-        }
-    </style>
+        
+    }
+</style>
+
 </head>
 <body>
     <nav class="navbar navbar-expand-md navbar-dark bg-primary fixed-top">
@@ -90,17 +222,17 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('about') }}">About</a>
+                        <a class="nav-link {% if request.endpoint == 'about' %}active{% endif %}" href="{{ url_for('about') }}">About</a>
                     </li>
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                          <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('account') }}">Account</a>
+                          <a class="nav-link {% if request.endpoint == 'account' %}active{% endif %}" href="{{ url_for('account') }}">Account</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('transfer') }}">Transfer</a>
+                          <a class="nav-link {% if request.endpoint == 'transfer' %}active{% endif %}" href="{{ url_for('transfer') }}">Transfer</a>
                     </li>
                     {% if current_user.is_manager %}
                     <li class="nav-item dropdown">
@@ -148,11 +280,17 @@
                     </li>
                     {% else %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                        <a class="nav-link {% if request.endpoint == 'login' %}active{% endif %}" href="{{ url_for('login') }}">Login</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                         <a class="nav-link {% if request.endpoint == 'register' %}active{% endif %}" href="{{ url_for('register') }}">Register</a>
                     </li>
+                    <li class="nav-item d-flex align-items-center">
+                        <button id="darkModeToggle" title="Toggle Dark Mode" class="btn p-0 border-0 bg-transparent" style="font-size: 1.2rem;">
+                            🌙
+                        </button>
+                    </li>
+
                     {% endif %}
                 </ul>
             </div>
@@ -178,54 +316,77 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-4 mb-4 mb-md-0">
-                    <h5>SimpleBankApp</h5>
-                    <p class="mb-3">A secure and user-friendly banking application designed for simplicity and reliability.</p>
-                    <div class="social-icons">
-                        <a href="#"><i class="bi bi-facebook"></i></a>
-                        <a href="#"><i class="bi bi-twitter"></i></a>
-                        <a href="#"><i class="bi bi-linkedin"></i></a>
-                        <a href="#"><i class="bi bi-github"></i></a>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4 mb-md-0">
-                    <h5>Quick Links</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="{{ url_for('about') }}">About Us</a></li>
-                        {% if current_user.is_authenticated %}
-                        <li><a href="{{ url_for('account') }}">My Account</a></li>
-                        <li><a href="{{ url_for('transfer') }}">Transfer Money</a></li>
-                        {% else %}
-                        <li><a href="{{ url_for('login') }}">Login</a></li>
-                        <li><a href="{{ url_for('register') }}">Register</a></li>
-                        {% endif %}
-                    </ul>
-                </div>
-                <div class="col-md-4">
-                    <h5>Contact</h5>
-                    <ul class="list-unstyled">
-                        <li><i class="bi bi-geo-alt-fill me-2"></i> 123 Banking Street, Financial District</li>
-                        <li><i class="bi bi-envelope-fill me-2"></i> support@simplebankapp.com</li>
-                        <li><i class="bi bi-telephone-fill me-2"></i> (123) 456-7890</li>
-                    </ul>
-                </div>
-            </div>
-            <hr class="mt-4 mb-4">
-            <div class="row">
-                <div class="col-md-6 mb-3 mb-md-0">
-                    <p class="mb-0">&copy; {{ current_year }} SimpleBankApp. All rights reserved. Developed by <a href="https://github.com/lanlanjr" target="_blank">A.IBO.JR.</a></p>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="mb-0">
-                        <a href="#">Privacy Policy</a> | 
-                        <a href="#">Terms of Service</a>
-                    </p>
-                </div>
-            </div>
-        </div>
-    </footer>
+  <div class="container text-light">
+    <div class="row justify-content-center text-center">
+  <div class="col-md-3 mx-3 mb-4">
+    <h5>SimpleBankApp</h5>
+    <p class="small">A secure and user-friendly banking application designed for simplicity and reliability.</p>
+    <div class="social-icons d-flex justify-content-center">
+      <a href="#"><i class="bi bi-facebook me-3"></i></a>
+      <a href="#"><i class="bi bi-twitter me-3"></i></a>
+      <a href="#"><i class="bi bi-linkedin me-3"></i></a>
+      <a href="#"><i class="bi bi-github me-3"></i></a>
+    </div>
+  </div>
+
+  <div class="col-md-3 mx-3 mb-4">
+    <h5>Quick Links</h5>
+    <ul class="list-unstyled small">
+      <li><a href="{{ url_for('about') }}">About Us</a></li>
+      {% if current_user.is_authenticated %}
+      <li><a href="{{ url_for('account') }}">My Account</a></li>
+      <li><a href="{{ url_for('transfer') }}">Transfer Money</a></li>
+      {% else %}
+      <li><a href="{{ url_for('login') }}">Login</a></li>
+      <li><a href="{{ url_for('register') }}">Register</a></li>
+      {% endif %}
+    </ul>
+  </div>
+
+  <div class="col-md-3 mx-3 mb-4">
+    <h5>Contact</h5>
+    <ul class="list-unstyled small">
+      <li><i class="bi bi-geo-alt-fill me-2"></i>123 Banking Street, Financial District</li>
+      <li><i class="bi bi-envelope-fill me-2"></i>support@simplebankapp.com</li>
+      <li><i class="bi bi-telephone-fill me-2"></i>(123) 456-7890</li>
+    </ul>
+  </div>
+</div>
+
+
+    <hr class="border-secondary my-4">
+
+    <div class="text-center meduim">
+      <p class="mb-1">
+        &copy; {{ current_year }} <strong>SimpleBankApp</strong>. All rights reserved.<br>
+        Developed by <a href="https://github.com/Devcavi19/simple-banking-app-v2" class="text-info" target="_blank">Group 2: Avila., Ollores., Rosales</a>
+      </p>
+      <p class="mb-0">
+        <a href="#" class="text-light me-2">Privacy Policy</a> | 
+        <a href="#" class="text-light ms-2">Terms of Service</a>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<script>
+    const toggle = document.getElementById('darkModeToggle');
+    const body = document.body;
+
+    // Load saved mode on page load
+    if (localStorage.getItem('dark-mode') === 'true') {
+        body.classList.add('dark-mode');
+    }
+    if (toggle) {
+        toggle.addEventListener('click', () => {
+            body.classList.toggle('dark-mode');
+            localStorage.setItem('dark-mode', body.classList.contains('dark-mode'));
+        });
+    }   
+
+</script>
+
+
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
