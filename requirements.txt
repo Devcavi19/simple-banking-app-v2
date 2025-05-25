@@ -12,3 +12,4 @@ pymysql==1.1.0
 cryptography
 requests==2.31.0
 Flask-Limiter==3.5.0 
+redis==4.6.0
