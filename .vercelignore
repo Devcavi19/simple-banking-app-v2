@@ -46,13 +46,18 @@ Thumbs.db
 .env
 .env.local
 .env.production
+.env.example
 
 # Git
 .git/
 .gitignore
 
-# Documentation
+# Documentation (optional - comment out if you want to include documentation)
 README.md
+DEPLOYMENT.md
+VERCEL_DEPLOYMENT.md
+QUICK_START.md
+DEPLOYMENT_CHECKLIST.md
 
 # Development files
 init_db.py
