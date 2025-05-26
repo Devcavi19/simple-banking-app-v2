@@ -34,6 +34,20 @@ The application features a multi-tier user system with regular users, administra
 
 -----------------------------------------
 
+## Branch Management
+
+We follow a structured branch workflow to ensure smooth development and deployment.
+
+### `main` Branch
+This is the primary development branch where all local machine executions occur. Developers work in this branch to implement new features, bug fixes, and improvements. Before deploying updates, changes are thoroughly tested here.
+
+### `deploy/vercel` Branch
+This branch is reserved for production and deployment purposes. Once modifications in the `main` branch are tested and verified, they are merged into `deploy/vercel`. This guarantees that only the latest stable version is deployed on Vercel, ensuring reliability for live users.
+
+By maintaining this separation, we ensure a streamlined workflow where development continues without disrupting the live application.
+
+-----------------------------------------
+
 ## Objectives
 
 The primary objectives of this Simple Banking App v2 project are:
@@ -471,7 +485,11 @@ Access at: `http://localhost:5000`
 
 The application is deployed and accessible on Vercel for demonstration purposes.
 
+
+
 **Live Application URL:** [Simple Banking App v2](https://simple-banking-app-v2.vercel.app)
+
+** Video App Demonstration: ** [Group 2 Video Demonstration](https://drive.google.com/file/d/1VLe9HNJ2FHQr8c-qlxnvHhq5pU9V-4OI/view?usp=sharing)
 
 For instructions on how to deploy your own version of this application to Vercel, please follow [Vercel's Python deployment documentation](https://vercel.com/docs/frameworks/python).
 
